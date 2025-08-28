@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – längre scroll & skugga</title>
+<title>Vit mobil 300×534 – auto-höjd & realistisk skugga</title>
 <style>
   :root{
-    --phone-w: 300px;     /* fast bredd */
-    --phone-h: 534px;     /* fast höjd (≈ 300 * 667/375) */
-    --screen-lr: 8px;     /* smalare sidokanter */
-    --screen-top: 24px;   /* avstånd från ovankant till skärmområde */
-    --screen-h: 480px;    /* skärmhöjd (ger tydlig scroll) */
+    --phone-w: 300px;
+    --phone-h: 534px;
+    --screen-lr: 8px;
+    --screen-top: 24px;
+    --screen-h: 480px;
     --radius-phone: 28px;
     --radius-screen: 20px;
   }
@@ -19,46 +19,45 @@
   html, body { height: 100%; }
   body{
     margin:0;
-    display:grid;
-    place-items:center;
-    background:#fff;           /* fallback */
-    background:transparent;    /* alltid transparent överst */
+    background:transparent; /* alltid transparent */
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    display:grid; place-items:center;
+    /* Förhindra inre scrollbars i iframen */
+    overflow: hidden;
   }
 
-  /* Scen med extra luft under för skuggan */
   .stage{
     display:grid;
     place-items:center;
-    padding-bottom: 38px; /* extra utrymme för skugga */
+    padding-bottom: 60px; /* luft för skuggan */
+    position: relative;
   }
 
-  /* Telefonkropp: vit, tunn kant, utan grå halo */
   .phone{
     position:relative;
     width:var(--phone-w);
     height:var(--phone-h);
     background:#fff;
     border-radius: var(--radius-phone);
-    box-shadow: inset 0 0 0 1px #e5e5e5;
+    box-shadow: inset 0 0 0 1px #e0e0e0;
     overflow:hidden;
+    z-index:2;
   }
 
-  /* Skugga under telefon (ellips) */
+  /* realistisk, mjuk ellips-skugga under telefonen */
   .shadow{
     position:absolute;
+    bottom:20px;
     left:50%;
-    bottom:-20px;               /* placerad strax under telefonen */
-    transform: translateX(-50%);
-    width: 64%;
-    height: 16px;
-    background: rgba(0,0,0,.12);
-    filter: blur(8px);
-    border-radius: 999px;
+    transform:translateX(-50%);
+    width: 200px;
+    height: 40px;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 80%);
+    filter: blur(6px);
+    z-index:1;
     pointer-events:none;
   }
 
-  /* Diskret notch (ljus) */
   .notch{
     position:absolute; top:6px; left:50%; transform:translateX(-50%);
     width:90px; height:14px; background:#eee;
@@ -67,7 +66,6 @@
     z-index:2;
   }
 
-  /* Skärmen: smalare sidokanter */
   .screen{
     position:absolute;
     top: var(--screen-top);
@@ -80,7 +78,6 @@
     box-shadow: inset 0 0 18px rgba(0,0,0,.10);
   }
 
-  /* Långa bilden */
   .longshot{
     width:100%;
     height:auto;
@@ -92,7 +89,7 @@
 </style>
 </head>
 <body>
-  <div class="stage">
+  <div class="stage" id="stage">
     <div class="phone">
       <div class="notch"></div>
       <div class="screen" id="screen">
@@ -100,19 +97,19 @@
              src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
              alt="Lång sida">
       </div>
-      <div class="shadow"></div>
     </div>
+    <div class="shadow"></div>
   </div>
 
 <script>
 (() => {
-  // === Stegvis auto-scroll (4 s/drag) med fade-reset i botten ===
-  const STEP_DURATION = 4000; // ms per scrollsteg (förlängt +1 s)
-  const STEP_GAP      = 200;  // liten paus mellan steg
-  const TOP_PAUSE     = 600;  // paus i toppen
-  const BOTTOM_PAUSE  = 600;  // paus i botten
-  const FADE_OUT_DUR  = 500;  // fade-out före reset
-  const FADE_IN_DUR   = 350;  // fade-in efter reset
+  // === Stegvis auto-scroll (4 s per steg) ===
+  const STEP_DURATION = 4000;
+  const STEP_GAP      = 200;
+  const TOP_PAUSE     = 600;
+  const BOTTOM_PAUSE  = 600;
+  const FADE_OUT_DUR  = 500;
+  const FADE_IN_DUR   = 350;
 
   const img = document.getElementById('longshot');
   const screen = document.getElementById('screen');
@@ -138,6 +135,7 @@
     setY(toY);
     await sleep(STEP_DURATION);
     clearTransition();
+    postSize(); // uppdatera höjd efter varje steg
   }
 
   async function fadeReset(){
@@ -149,13 +147,14 @@
     transition(['opacity'], FADE_IN_DUR, 'ease'); img.style.opacity = '1';
     await sleep(FADE_IN_DUR);
     clearTransition();
+    postSize(); // uppdatera efter reset
   }
 
   async function loop(){
     if(running) return; running = true;
     while(running){
       const delta = deltaPx();
-      if(delta <= 0){ img.style.opacity='1'; setY(0); await sleep(1000); continue; }
+      if(delta <= 0){ img.style.opacity='1'; setY(0); await sleep(1000); postSize(); continue; }
       const stepSize = Math.max(120, screen.clientHeight * 0.85);
       let pos = 0;
       await sleep(TOP_PAUSE);
@@ -172,11 +171,24 @@
 
   async function ready(){
     try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); loop();
+    img.style.opacity='1'; setY(0);
+    postSize(); // initialt
+    loop();
   }
 
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
+
+  // === Auto-höjd: skicka höjd till föräldersidan ===
+  function postSize(){
+    const h = document.documentElement.scrollHeight;
+    parent.postMessage({ scrollDemoHeight: h }, "*");
+  }
+  window.addEventListener("load", postSize);
+  window.addEventListener("resize", postSize);
+
+  // säkerställ uppdatering med intervall (för embed som stryper resize)
+  setInterval(postSize, 1500);
 })();
 </script>
 </body>
