@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – stabil paus/play, rund knapp</title>
+<title>Vit mobil 300×534 – auto + manuell scroll (utan knapp)</title>
 <style>
   :root{
     --phone-w: 300px;
@@ -21,7 +21,7 @@
     background:transparent;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     display:grid; place-items:center;
-    overflow:hidden;
+    overflow:hidden; /* inga inre scrollbars i iframen */
   }
   .stage{ display:grid; place-items:center; position:relative; }
 
@@ -51,21 +51,9 @@
     user-select:none; -webkit-user-drag:none; pointer-events:none;
   }
 
-  /* Rund paus/play-knapp – 50px från .screen höger/underkant */
-  #toggleAuto{
-    position:absolute; right:50px; bottom:50px; z-index:3;
-    width:44px; height:44px; border-radius:999px;
-    display:grid; place-items:center;
-    border:1px solid #d8d8d8; background:#ffffffcc; /* lätt transparens */
-    backdrop-filter: blur(4px);
-    box-shadow:0 6px 16px rgba(0,0,0,.16);
-    cursor:pointer;
-    transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+  @media (prefers-reduced-motion: reduce) {
+    .longshot { transition: none !important; }
   }
-  #toggleAuto:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.2); }
-  #toggleAuto:active{ transform: translateY(0); box-shadow:0 4px 12px rgba(0,0,0,.16); }
-  #toggleAuto:focus{ outline:2px solid #4a90e2; outline-offset:2px; }
-  #toggleAuto svg{ width:18px; height:18px; display:block; }
 </style>
 </head>
 <body>
@@ -76,70 +64,38 @@
         <img id="longshot" class="longshot"
              src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
              alt="Förhandsvisning av lång sida">
-
-        <!-- Rund paus/play-knapp inne i .screen (50px från höger/underkant) -->
-        <button id="toggleAuto" aria-pressed="false" aria-label="Pausa autoscroll">
-          <!-- Pause ikon (default) -->
-          <svg id="icon-pause" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect x="6" y="4" width="4" height="16" rx="1.2" fill="#333"/>
-            <rect x="14" y="4" width="4" height="16" rx="1.2" fill="#333"/>
-          </svg>
-          <!-- Play ikon (dold initialt) -->
-          <svg id="icon-play" viewBox="0 0 24 24" fill="none" style="display:none" aria-hidden="true">
-            <path d="M8 5v14l11-7-11-7z" fill="#333"/>
-          </svg>
-        </button>
       </div>
     </div>
   </div>
 
 <script>
 (() => {
-  // ========================
-  // CONFIG
-  // ========================
+  // === Konfig ===
   const CONFIG = {
-    STEP_DURATION: 4000,   // ms per autosteg
-    STEP_GAP:      200,    // ms mellan steg
-    TOP_PAUSE:     600,    // ms i toppen
-    BOTTOM_PAUSE:  600,    // ms i botten
-    FADE_OUT_DUR:  500,    // ms fade-out före reset
-    FADE_IN_DUR:   350,    // ms fade-in efter reset
-    RESUME_DELAY:  1500,   // ms inaktivitet efter manuell interaktion innan auto får fortsätta
-    WHEEL_SPEED:   1.0     // skala mushjul
+    STEP_DURATION: 4000,  // ms per autosteg
+    STEP_GAP:      200,   // ms mellan steg
+    TOP_PAUSE:     600,   // ms i toppen
+    BOTTOM_PAUSE:  600,   // ms i botten
+    FADE_OUT_DUR:  500,   // fade-out före reset
+    FADE_IN_DUR:   350,   // fade-in efter reset
+    RESUME_DELAY:  1500,  // paus efter manuell interaktion
+    WHEEL_SPEED:   1.0
   };
 
-  const img    = document.getElementById('longshot');
+  const img = document.getElementById('longshot');
   const screen = document.getElementById('screen');
-  const btn    = document.getElementById('toggleAuto');
-  const iconPause = document.getElementById('icon-pause');
-  const iconPlay  = document.getElementById('icon-play');
 
-  // Två separata tillstånd:
-  // - autoEnabled: styrs av knappen (permanent på/av tills användaren ändrar)
-  // - pausedByUser: temporär paus när man drar/scrollar själv; återupptas efter RESUME_DELAY
   let running = false;
-  let autoEnabled = true;
-  let pausedByUser = false;
-  let resumeTimer = null;
+  let pausedByUser = false;      // temporär paus vid manuell interaktion
+  let autoEnabled  = true;       // permanent autoläge (ingen knapp nu)
+  let resumeTimer  = null;
 
-  // Respektera prefers-reduced-motion (starta med autoscroll av)
-  const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  if (prefersReduced) setAutoEnabled(false);
-
-  function setAutoEnabled(on){
-    autoEnabled = on;
-    btn?.setAttribute('aria-pressed', String(!on)); // aria-pressed=true när pausad
-    if (on) {
-      iconPause.style.display = '';
-      iconPlay.style.display  = 'none';
-    } else {
-      iconPause.style.display = 'none';
-      iconPlay.style.display  = '';
-    }
+  // Respektera OS-inställning för minskad rörelse
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    autoEnabled = false; // starta utan autoscroll
   }
 
-  // Helpers
+  // Hjälpfunktioner
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
   const transition = (props, dur, easing='ease') => { img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
@@ -158,17 +114,11 @@
   function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
 
   function tempPauseAuto(){
-    // Anropas vid manuell interaktion: pausa autoloopen tillfälligt
     pausedByUser = true;
     clearTransition();
     if(resumeTimer) clearTimeout(resumeTimer);
     resumeTimer = setTimeout(()=>{ pausedByUser = false; }, CONFIG.RESUME_DELAY);
   }
-
-  // Knapp: toggla autoEnabled robust
-  btn?.addEventListener('click', ()=>{
-    setAutoEnabled(!autoEnabled);
-  });
 
   async function animateStep(fromY, toY){
     clearTransition(); setY(fromY); await sleep(20);
@@ -190,7 +140,7 @@
       const d = deltaPx();
       if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
 
-      // Vänta tills både autoEnabled & inte temporärt pausad
+      // Vänta tills auto är på och ingen manuell paus pågår
       while(!(autoEnabled && !pausedByUser)) { await sleep(120); }
 
       const stepSize = Math.max(120, screen.clientHeight * 0.85);
@@ -198,14 +148,12 @@
 
       await sleep(CONFIG.TOP_PAUSE);
       while(pos < d - 1){
-        // Avbryt steg om auto stängs av eller användaren pausar tillfälligt
         if(!(autoEnabled && !pausedByUser)) break;
         const next = Math.min(d, pos + stepSize);
         await animateStep(pos, next);
         pos = next;
         await sleep(CONFIG.STEP_GAP);
       }
-      // Om användaren eller knappen stoppade auto – hoppa till början av loopen
       if(!(autoEnabled && !pausedByUser)) continue;
 
       await sleep(CONFIG.BOTTOM_PAUSE);
@@ -213,16 +161,14 @@
     }
   }
 
-  // Manuell kontroll: touch, pointer, mouse (fallback), wheel, tangentbord
+  // Manuell kontroll: touch, pointer, mouse, wheel, tangentbord
   (function enableManual(){
     let dragging = false, startY = 0, startPos = 0;
 
     function startDrag(clientY, pointerId){
       tempPauseAuto();
-      dragging = true;
-      screen.classList.add('dragging');
-      startY = clientY;
-      startPos = currentY();
+      dragging = true; screen.classList.add('dragging');
+      startY = clientY; startPos = currentY();
       try { if(pointerId != null && screen.setPointerCapture) screen.setPointerCapture(pointerId); } catch(e){}
     }
     function moveDrag(clientY){
@@ -232,8 +178,7 @@
       clearTransition(); setY(ny);
     }
     function endDrag(){
-      dragging = false;
-      screen.classList.remove('dragging');
+      dragging = false; screen.classList.remove('dragging');
       try { if(screen.releasePointerCapture) screen.releasePointerCapture(); } catch(e){}
     }
 
