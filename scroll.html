@@ -3,32 +3,26 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Auto-scroll i mobilram (3s steg)</title>
+<title>Dynamisk mobil (max 375×667) med stegvis auto-scroll</title>
 <style>
   :root{
-  --phone-max-w: 375px;   /* iPhone 8/SE storlek */
-  --phone-ratio: 667/375; /* höjd/bredd-förhållande */
-}
+    /* Max yttre telefonram (responsiv upp till denna gräns) */
+    --phone-max-w: 375px;             /* maxbredd */
+    --phone-aspect-w: 375;            /* proportioner */
+    --phone-aspect-h: 667;
 
-.phone {
-  position: relative;
-  width: min(100%, var(--phone-max-w));
-  aspect-ratio: 375 / 667;          /* bibehåll proportionerna */
-  background: #111;
-  border-radius: 40px;
-  box-shadow: 0 16px 40px rgba(0,0,0,.4), inset 0 0 0 2px #222;
-  overflow: hidden;
-}
+    /* Skärmområde som procent av telefonkroppen (justera vid behov) */
+    --screen-top:   4.8%;
+    --screen-left:  4%;
+    --screen-w:     92%;
+    --screen-h:     90%;
 
-/* Skärmen inuti telefonen */
-.screen {
-  position: absolute;
-  top: 5%; left: 4%;
-  width: 92%; height: 90%;
-  border-radius: 28px;
-  overflow: hidden;
-  background: #fff;
-}
+    /* Visuell stil */
+    --radius-phone: 36px;
+    --radius-screen: 28px;
+    --bg: #eceff1;
+    --chrome-shadow: rgba(0,0,0,.45);
+  }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -38,154 +32,21 @@
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   }
 
+  /* Yttre wrapper som låter oss centrera och ev. skala på smala ytor */
+  .wrap { width: 100%; display: grid; place-items: center; }
+
+  /* Telefonkropp: responsiv med låst proportion (375/667), men max 375 px bred */
   .phone{
-    position:relative;
-    width:var(--phone-w); height:var(--phone-h);
-    background:#111; border-radius:var(--radius-phone);
-    box-shadow:0 24px 60px var(--chrome-shadow), inset 0 0 0 2px #222;
-    overflow:hidden;
+    position: relative;
+    width: min(100%, var(--phone-max-w));
+    aspect-ratio: var(--phone-aspect-w) / var(--phone-aspect-h);
+    background: #111;
+    border-radius: var(--radius-phone);
+    box-shadow: 0 20px 52px var(--chrome-shadow), inset 0 0 0 2px #222;
+    overflow: hidden;
   }
+  /* Sidobevels för lite realism */
   .phone::before, .phone::after{
-    content:""; position:absolute; top:0; bottom:0; width:6px; pointer-events:none;
-    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.35));
-  }
-  .phone::before{ left:0; } .phone::after{ right:0; }
-
-  .btn{ position:absolute; left:-2px; width:6px; border-radius:3px; background:#2a2a2a;
-        box-shadow: inset 0 0 4px rgba(0,0,0,.6); }
-  .btn.silent{ top:105px; height:26px; }
-  .btn.volup { top:140px; height:42px; }
-  .btn.voldn { top:195px; height:42px; }
-
-  .notch{
-    position:absolute; top:8px; left:50%; transform:translateX(-50%);
-    width:140px; height:22px; background:#000; border-radius:0 0 12px 12px;
-    box-shadow:0 2px 6px rgba(0,0,0,.4); z-index:2;
-  }
-  .speaker{ position:absolute; top:5px; left:50%; transform:translateX(-50%);
-            width:56px; height:6px; background:#1a1a1a; border-radius:3px; }
-  .cam{ position:absolute; top:4px; right:16px; width:9px; height:9px; border-radius:50%;
-        background: radial-gradient(circle at 30% 30%, #2a6cff, #0a0a0a 60%);
-        box-shadow:0 0 4px rgba(42,108,255,.6); }
-
-  .screen{
-    position:absolute; top:34px; left:15px;
-    width:var(--screen-w); height:var(--screen-h);
-    border-radius:var(--radius-screen); overflow:hidden; background:#fff;
-    box-shadow: inset 0 0 36px rgba(0,0,0,.15);
-  }
-
-  .longshot{
-    width:100%; height:auto; display:block;
-    transform: translateY(0);
-    opacity: 1;
-    will-change: transform, opacity;
-  }
-
-  .scale-wrap { transform-origin: top left; }
-  @media (max-width: 420px){ .scale-wrap{ transform: scale(0.9); } }
-  @media (max-width: 380px){ .scale-wrap{ transform: scale(0.8); } }
-</style>
-</head>
-<body>
-  <div class="scale-wrap">
-    <div class="phone" role="img" aria-label="Telefonram med auto-scrollande förhandsvisning">
-      <div class="btn silent"></div>
-      <div class="btn volup"></div>
-      <div class="btn voldn"></div>
-
-      <div class="notch"><div class="speaker"></div><div class="cam"></div></div>
-
-      <div class="screen">
-        <img id="longshot" class="longshot"
-             src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
-             alt="Lång sida">
-      </div>
-    </div>
-  </div>
-
-<script>
-(function(){
-  // === 3 sek/scrollsteg + fade reset i botten ===
-  const STEP_DURATION = 3000; // ms per steg ≈ 3 s
-  const STEP_GAP      = 200;  // liten paus mellan steg
-  const TOP_PAUSE     = 600;  // paus i toppen
-  const BOTTOM_PAUSE  = 600;  // paus i botten
-  const FADE_OUT_DUR  = 500;  // fade-out före reset
-  const FADE_IN_DUR   = 350;  // fade-in efter reset
-
-  const img = document.getElementById('longshot');
-  const screen = document.querySelector('.screen');
-
-  let running = false, pendingResize = false;
-
-  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-
-  function setY(y){ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; }
-  function transition(props, dur, easing='ease'){ img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); }
-  function clearTransition(){ img.style.transition = 'none'; }
-
-  function deltaPx(){
-    if(!img.naturalWidth || !img.naturalHeight) return 0;
-    const scale = screen.clientWidth / img.naturalWidth;
-    const imgH  = img.naturalHeight * scale;
-    return Math.max(0, imgH - screen.clientHeight);
-  }
-
-  async function animateStep(fromY, toY){
-    clearTransition(); setY(fromY);
-    await sleep(20);
-    transition(['transform'], STEP_DURATION, 'ease-in-out');
-    setY(toY);
-    await sleep(STEP_DURATION);
-    clearTransition();
-  }
-
-  async function fadeReset(){
-    clearTransition(); await sleep(20);
-    transition(['opacity'], FADE_OUT_DUR, 'ease'); img.style.opacity = '0';
-    await sleep(FADE_OUT_DUR);
-    clearTransition(); setY(0);
-    await sleep(20);
-    transition(['opacity'], FADE_IN_DUR, 'ease'); img.style.opacity = '1';
-    await sleep(FADE_IN_DUR);
-    clearTransition();
-  }
-
-  async function loop(){
-    if(running) return; running = true;
-    while(running){
-      const delta = deltaPx();
-      if(delta <= 0){ img.style.opacity = '1'; setY(0); await sleep(800); continue; }
-
-      const stepSize = Math.max(120, screen.clientHeight * 0.85);
-      let pos = 0;
-
-      await sleep(TOP_PAUSE);
-      while(pos < delta - 1){
-        const next = Math.min(delta, pos + stepSize);
-        await animateStep(pos, next);
-        pos = next;
-        await sleep(STEP_GAP);
-        if(pendingResize){ break; }
-      }
-      if(pendingResize){ pendingResize = false; continue; }
-
-      await sleep(BOTTOM_PAUSE);
-      await fadeReset();
-    }
-  }
-
-  async function ready(){
-    try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); loop();
-  }
-
-  if (img.complete && img.naturalWidth) ready();
-  else img.addEventListener('load', ready, { once:true });
-
-  window.addEventListener('resize', ()=>{ pendingResize = true; }, { passive:true });
-})();
-</script>
-</body>
-</html>
+    content:"";
+    position:absolute; top:0; bottom:0; width:6px; pointer-events:none;
+    background
