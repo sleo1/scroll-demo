@@ -6,15 +6,30 @@
 <title>Auto-scroll i mobilram (3s steg)</title>
 <style>
   :root{
-    --phone-w: 400px;
-    --phone-h: 760px;     /* ↓ lägre telefon */
-    --screen-w: 370px;
-    --screen-h: 520px;    /* behåll tydlig scroll/delta */
-    --radius-phone: 52px;
-    --radius-screen: 36px;
-    --bg: #eceff1;
-    --chrome-shadow: rgba(0,0,0,.5);
-  }
+  --phone-max-w: 375px;   /* iPhone 8/SE storlek */
+  --phone-ratio: 667/375; /* höjd/bredd-förhållande */
+}
+
+.phone {
+  position: relative;
+  width: min(100%, var(--phone-max-w));
+  aspect-ratio: 375 / 667;          /* bibehåll proportionerna */
+  background: #111;
+  border-radius: 40px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.4), inset 0 0 0 2px #222;
+  overflow: hidden;
+}
+
+/* Skärmen inuti telefonen */
+.screen {
+  position: absolute;
+  top: 5%; left: 4%;
+  width: 92%; height: 90%;
+  border-radius: 28px;
+  overflow: hidden;
+  background: #fff;
+}
+
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body{
