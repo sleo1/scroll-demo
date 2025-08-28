@@ -3,63 +3,42 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mobil 300×534 – exakt storlek</title>
+<title>Mobil 300×534 – autoscroll fix + overrides</title>
 <style>
   :root{
-    --phone-w: 300px;   /* EXAKT bredd */
-    --phone-h: 534px;   /* 300 * (667/375) ≈ 534 */
-    --screen-lr: 8px;   /* smala sidokanter */
-    --screen-top: 20px; /* lite lägre toppmarginal */
-    --screen-h: 480px;  /* synlig del för tydlig scroll */
+    --phone-w: 300px;
+    --phone-h: 534px;     /* 300 * (667/375) */
+    --screen-lr: 8px;
+    --screen-top: 20px;
+    --screen-h: 460px;    /* lite lägre än tidigare (480) => garanterad scroll-delta */
     --radius-phone: 28px;
     --radius-screen: 20px;
   }
 
   * { box-sizing: border-box; }
-  html, body { margin:0; padding:0; height:auto; } /* ingen extra höjd */
-  body{
-    background:transparent;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  }
+  html, body { margin:0; padding:0; height:auto; }
+  body{ background:transparent; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
 
-  /* Wrapper som tar exakt innehållets höjd/bredd */
-  #stage{
-    display:inline-block;           /* tar exakt sin egen storlek */
-    margin:0; padding:0;
-  }
+  #stage{ display:inline-block; margin:0; padding:0; }
 
   .phone{
-    position:relative;
-    width:var(--phone-w);
-    height:var(--phone-h);
-    background:#fff;
-    border-radius: var(--radius-phone);
-    box-shadow: inset 0 0 0 1px #e0e0e0;
-    overflow:hidden;
+    position:relative; width:var(--phone-w); height:var(--phone-h);
+    background:#fff; border-radius: var(--radius-phone);
+    box-shadow: inset 0 0 0 1px #e0e0e0; overflow:hidden;
   }
-
   .notch{
     position:absolute; top:6px; left:50%; transform:translateX(-50%);
-    width:90px; height:14px; background:#eee;
-    border-radius:0 0 8px 8px;
-    box-shadow: inset 0 0 2px rgba(0,0,0,.12);
-    z-index:2;
+    width:90px; height:14px; background:#eee; border-radius:0 0 8px 8px;
+    box-shadow: inset 0 0 2px rgba(0,0,0,.12); z-index:2;
   }
-
   .screen{
-    position:absolute;
-    top: var(--screen-top);
-    left: var(--screen-lr);
-    width: calc(var(--phone-w) - var(--screen-lr) * 2);
-    height: var(--screen-h);
-    border-radius: var(--radius-screen);
-    overflow:hidden;
-    background:#fff;
+    position:absolute; top:var(--screen-top); left:var(--screen-lr);
+    width:calc(var(--phone-w) - var(--screen-lr)*2); height:var(--screen-h);
+    border-radius:var(--radius-screen); overflow:hidden; background:#fff;
     box-shadow: inset 0 0 18px rgba(0,0,0,.10);
     touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
   }
   .screen.dragging{ cursor:grabbing; }
-
   .longshot{
     width:100%; height:auto; display:block;
     transform:translateY(0); opacity:1;
@@ -102,14 +81,20 @@
   const screen = document.getElementById('screen');
   const stage  = document.getElementById('stage');
 
+  // ---- Overrides via URL ----
+  const qs = new URLSearchParams(location.search);
+  const FORCE_AUTO = qs.get('auto');     // '1' (på), '0' (av), null = följ PRM
+  const IGNORE_PRM = qs.get('prm') === '0';
+
   let running = false;
   let pausedByUser = false;
   let autoEnabled  = true;
   let resumeTimer  = null;
 
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    autoEnabled = false;
-  }
+  const prm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (prm && !IGNORE_PRM && FORCE_AUTO!=='1') autoEnabled = false;
+  if (FORCE_AUTO==='0') autoEnabled = false;
+  if (FORCE_AUTO==='1') autoEnabled = true;
 
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
@@ -138,7 +123,7 @@
   async function animateStep(fromY, toY){
     clearTransition(); setY(fromY); await sleep(20);
     transition(['transform'], CONFIG.STEP_DURATION, 'ease-in-out');
-    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postSize();
+    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postExactHeight();
   }
   async function fadeReset(){
     clearTransition(); await sleep(20);
@@ -146,14 +131,14 @@
     await sleep(CONFIG.FADE_OUT_DUR);
     clearTransition(); setY(0); await sleep(20);
     transition(['opacity'], CONFIG.FADE_IN_DUR, 'ease'); img.style.opacity = '1';
-    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize();
+    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postExactHeight();
   }
 
   async function loop(){
     if(running) return; running = true;
     while(running){
       const d = deltaPx();
-      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postExactHeight(); continue; }
 
       while(!(autoEnabled && !pausedByUser)) { await sleep(120); }
 
@@ -175,7 +160,7 @@
     }
   }
 
-  // Manuell kontroll: touch, pointer, mouse, wheel, tangentbord
+  // Manuell kontroll
   (function enableManual(){
     let dragging = false, startY = 0, startPos = 0;
 
@@ -211,7 +196,7 @@
     window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
     window.addEventListener('mouseup',   endDrag);
 
-    // Mouse wheel
+    // Wheel
     screen.addEventListener('wheel', e=>{
       tempPauseAuto();
       const d = deltaPx(), y = currentY();
@@ -220,7 +205,7 @@
       e.preventDefault();
     }, {passive:false});
 
-    // Tangentbord
+    // Keyboard
     screen.addEventListener('keydown', e=>{
       const d = deltaPx(); if(!d) return;
       const y = currentY();
@@ -239,20 +224,25 @@
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
 
-  // === Auto-höjd -> Google Sites (exakt innehållshöjd) ===
+  // Auto-höjd -> Google Sites (exakt höjd på #stage)
   function postExactHeight(){
     const h = Math.ceil(document.getElementById('stage').getBoundingClientRect().height);
     parent.postMessage({ scrollDemoHeight: h }, "*");
   }
   window.addEventListener("load", postExactHeight);
   window.addEventListener("resize", postExactHeight);
-
   if ('ResizeObserver' in window) {
-    const ro = new ResizeObserver(()=>postExactHeight());
-    ro.observe(stage);
+    new ResizeObserver(()=>postExactHeight()).observe(stage);
   } else {
     setInterval(postExactHeight, 1200);
   }
+
+  // Watchdog: om autoscroll av misstag inte startar inom 6s men ska vara på → starta
+  setTimeout(()=>{ 
+    if (deltaPx()>0 && (FORCE_AUTO==='1' || (!prm || IGNORE_PRM)) ) {
+      autoEnabled = true;
+    }
+  }, 6000);
 })();
 </script>
 </body>
