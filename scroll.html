@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – auto + manuell scroll (desktopfix)</title>
+<title>Vit mobil 300×534 – auto + manuell scroll, diskret pausknapp</title>
 <style>
   :root{
     --phone-w: 300px;
@@ -19,13 +19,15 @@
   body{
     margin:0;
     background:transparent;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    font-family: system-ui, sans-serif;
     display:grid; place-items:center;
-    overflow: hidden; /* undvik inre scrollbars i iframen */
+    overflow:hidden;
   }
-  .stage{ display:grid; place-items:center; padding-bottom:0; position:relative; }
+  .stage{ display:grid; place-items:center; position:relative; }
+
   .phone{
-    position:relative; width:var(--phone-w); height:var(--phone-h);
+    position:relative;
+    width:var(--phone-w); height:var(--phone-h);
     background:#fff; border-radius:var(--radius-phone);
     box-shadow: inset 0 0 0 1px #e0e0e0; overflow:hidden;
   }
@@ -39,178 +41,135 @@
     width:calc(var(--phone-w) - var(--screen-lr)*2); height:var(--screen-h);
     border-radius:var(--radius-screen); overflow:hidden; background:#fff;
     box-shadow: inset 0 0 18px rgba(0,0,0,.10);
-    touch-action: none;           /* vi hanterar gester själva */
-    cursor: grab;
-    user-select: none;
-    -webkit-user-select: none;
+    touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
   }
-  .screen.dragging{ cursor: grabbing; }
+  .screen.dragging{ cursor:grabbing; }
   .longshot{
     width:100%; height:auto; display:block;
-    transform: translateY(0); opacity:1;
-    will-change: transform, opacity;
-    user-select: none; -webkit-user-drag: none; pointer-events:none;
+    transform:translateY(0); opacity:1;
+    user-select:none; -webkit-user-drag:none; pointer-events:none;
   }
+
+  /* Paus/Spela-upp-knapp: dold tills hover/fokus */
+  #toggleAuto{
+    position:absolute; right:8px; bottom:8px; z-index:3;
+    font:inherit; padding:6px 10px; border-radius:999px;
+    border:1px solid #ddd; background:#fff; color:#333;
+    box-shadow:0 2px 8px rgba(0,0,0,.1); cursor:pointer;
+    opacity:0; transition:opacity .25s;
+  }
+  .phone:hover #toggleAuto,
+  .phone:focus-within #toggleAuto{
+    opacity:1;
+  }
+  #toggleAuto:focus{ outline:2px solid #4a90e2; outline-offset:2px; }
 </style>
 </head>
 <body>
-  <div class="stage" id="stage">
-    <div class="phone">
+  <div class="stage">
+    <div class="phone" role="region" aria-label="Telefonram med förhandsvisning">
       <div class="notch"></div>
-      <div class="screen" id="screen">
+      <div class="screen" id="screen" tabindex="0" aria-label="Skärmområde med rullbar förhandsvisning">
         <img id="longshot" class="longshot"
              src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
-             alt="Lång sida">
+             alt="Förhandsvisning av lång sida">
       </div>
+      <button id="toggleAuto" aria-pressed="false" aria-label="Pausa autoscroll">⏸</button>
     </div>
   </div>
 
 <script>
 (() => {
-  // === Auto-scroll parametrar (4 s per steg) ===
-  const STEP_DURATION = 4000, STEP_GAP = 200, TOP_PAUSE = 600, BOTTOM_PAUSE = 600;
-  const FADE_OUT_DUR = 500, FADE_IN_DUR = 350;
+  const CONFIG = { STEP_DURATION:4000, STEP_GAP:200, TOP_PAUSE:600, BOTTOM_PAUSE:600,
+                   FADE_OUT_DUR:500, FADE_IN_DUR:350, RESUME_DELAY:1500, WHEEL_SPEED:1.0 };
 
-  // === Manuell scroll ===
-  const RESUME_DELAY = 1500;    // ms inaktivitet innan auto återupptas
-  const WHEEL_SPEED  = 1.0;     // skalfaktor mushjul
+  const img=document.getElementById('longshot');
+  const screen=document.getElementById('screen');
+  const btn=document.getElementById('toggleAuto');
 
-  const img = document.getElementById('longshot');
-  const screen = document.getElementById('screen');
+  let running=false, pausedByUser=false, resumeTimer=null;
 
-  let running = false, pausedByUser = false, resumeTimer = null;
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){ pausedByUser=true; }
 
-  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-  const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
-  const transition = (props, dur, easing='ease') => { img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
-  const clearTransition = ()=>{ img.style.transition = 'none'; };
-
-  function deltaPx(){
-    if(!img.naturalWidth || !img.naturalHeight) return 0;
-    const scale = screen.clientWidth / img.naturalWidth;
-    const imgH  = img.naturalHeight * scale;
-    return Math.max(0, imgH - screen.clientHeight);
-  }
-  function currentY(){
-    const m = /translateY\((-?\d+)px\)/.exec(img.style.transform);
-    return m ? Math.max(0, -parseInt(m[1],10)) : 0;
-  }
-  function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const setY=y=>{ img.style.transform=`translateY(${-Math.max(0,Math.round(y))}px)`; };
+  const transition=(props,dur,easing='ease')=>{ img.style.transition=props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
+  const clearTransition=()=>{ img.style.transition='none'; };
+  const deltaPx=()=>{ if(!img.naturalWidth)return 0;
+    const scale=screen.clientWidth/img.naturalWidth;
+    return Math.max(0,img.naturalHeight*scale-screen.clientHeight); };
+  const currentY=()=>{ const m=/translateY\((-?\d+)px\)/.exec(img.style.transform);
+    return m?Math.max(0,-parseInt(m[1],10)):0; };
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 
   function pauseAuto(){
-    pausedByUser = true;
-    clearTransition();
-    if(resumeTimer) clearTimeout(resumeTimer);
-    resumeTimer = setTimeout(()=>{ pausedByUser = false; }, RESUME_DELAY);
+    pausedByUser=true;
+    btn?.setAttribute('aria-pressed','true'); btn&&(btn.textContent='▶');
+    clearTransition(); if(resumeTimer)clearTimeout(resumeTimer);
+    resumeTimer=setTimeout(()=>{ pausedByUser=false; btn?.setAttribute('aria-pressed','false'); btn&&(btn.textContent='⏸'); }, CONFIG.RESUME_DELAY);
   }
+  btn?.addEventListener('click',()=>{ pausedByUser=!pausedByUser;
+    btn.setAttribute('aria-pressed',String(pausedByUser));
+    btn.textContent=pausedByUser?'▶':'⏸'; });
 
-  async function animateStep(fromY, toY){
-    if(pausedByUser) return;
+  async function animateStep(fromY,toY){ if(pausedByUser)return;
     clearTransition(); setY(fromY); await sleep(20);
-    transition(['transform'], STEP_DURATION, 'ease-in-out');
-    setY(toY); await sleep(STEP_DURATION); clearTransition(); postSize();
-  }
-  async function fadeReset(){
-    if(pausedByUser) return;
+    transition(['transform'],CONFIG.STEP_DURATION,'ease-in-out');
+    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postSize(); }
+  async function fadeReset(){ if(pausedByUser)return;
     clearTransition(); await sleep(20);
-    transition(['opacity'], FADE_OUT_DUR, 'ease'); img.style.opacity = '0';
-    await sleep(FADE_OUT_DUR);
-    clearTransition(); setY(0); await sleep(20);
-    transition(['opacity'], FADE_IN_DUR, 'ease'); img.style.opacity = '1';
-    await sleep(FADE_IN_DUR); clearTransition(); postSize();
-  }
+    transition(['opacity'],CONFIG.FADE_OUT_DUR,'ease'); img.style.opacity='0';
+    await sleep(CONFIG.FADE_OUT_DUR); clearTransition(); setY(0); await sleep(20);
+    transition(['opacity'],CONFIG.FADE_IN_DUR,'ease'); img.style.opacity='1';
+    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize(); }
 
-  async function loop(){
-    if(running) return; running = true;
-    while(running){
-      const d = deltaPx();
-      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+  async function loop(){ if(running)return; running=true;
+    while(running){ const d=deltaPx();
+      if(d<=0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+      while(pausedByUser){ await sleep(100); }
+      const stepSize=Math.max(120,screen.clientHeight*0.85);
+      let pos=currentY(); await sleep(CONFIG.TOP_PAUSE);
+      while(pos<d-1){ if(pausedByUser)break;
+        const next=Math.min(d,pos+stepSize);
+        await animateStep(pos,next); pos=next; await sleep(CONFIG.STEP_GAP);}
+      if(pausedByUser)continue; await sleep(CONFIG.BOTTOM_PAUSE); await fadeReset(); } }
 
-      while(pausedByUser) { await sleep(100); } // vänta tills användaren är klar
-
-      const stepSize = Math.max(120, screen.clientHeight * 0.85);
-      let pos = currentY();
-
-      await sleep(TOP_PAUSE);
-      while(pos < d - 1){
-        if(pausedByUser) break;
-        const next = Math.min(d, pos + stepSize);
-        await animateStep(pos, next);
-        pos = next;
-        await sleep(STEP_GAP);
-      }
-      if(pausedByUser) continue;
-
-      await sleep(BOTTOM_PAUSE);
-      await fadeReset();
-    }
-  }
-
-  // === Manuell kontroll: touch, pointer, mouse (fallback), wheel ===
-  (function enableManual(){
-    let dragging = false, startY = 0, startPos = 0;
-
-    function startDrag(clientY, pointerId){
-      pauseAuto();
-      dragging = true;
-      screen.classList.add('dragging');
-      startY = clientY;
-      startPos = currentY();
-      // Pointer capture om möjligt (stabilt drag även utanför elementet)
-      try { if(pointerId != null && screen.setPointerCapture) screen.setPointerCapture(pointerId); } catch(e){}
-    }
-    function moveDrag(clientY){
-      if(!dragging) return;
-      const d = deltaPx(), dy = clientY - startY;
-      const ny = clamp(startPos - dy, 0, d);
-      clearTransition(); setY(ny);
-    }
-    function endDrag(){
-      dragging = false;
-      screen.classList.remove('dragging');
-      try { if(screen.releasePointerCapture) screen.releasePointerCapture(); } catch(e){}
-    }
-
-    // Touch
-    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY, null); } e.preventDefault(); }, {passive:false});
-    screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
-    screen.addEventListener('touchend',   endDrag);
-
-    // Pointer (Edge/Chrome/Firefox/Safari nyare)
-    screen.addEventListener('pointerdown', e=>{ startDrag(e.clientY, e.pointerId); e.preventDefault(); });
-    window.addEventListener('pointermove', e=>{ if(dragging) moveDrag(e.clientY); });
-    window.addEventListener('pointerup',   endDrag);
-
-    // Mouse fallback (för miljöer utan pointer events)
-    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY, null); e.preventDefault(); });
-    window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
-    window.addEventListener('mouseup',   endDrag);
-
-    // Mouse wheel
-    screen.addEventListener('wheel', e=>{
-      pauseAuto();
-      const d = deltaPx(), y = currentY();
-      const ny = clamp(y + e.deltaY * WHEEL_SPEED, 0, d);
-      clearTransition(); setY(ny);
-      e.preventDefault();
-    }, {passive:false});
+  // Manuell kontroll (touch, pointer, mouse, wheel, tangentbord)
+  (function(){
+    let dragging=false,startY=0,startPos=0;
+    function startDrag(clientY,id){ pauseAuto(); dragging=true; screen.classList.add('dragging');
+      startY=clientY; startPos=currentY(); try{ if(id!=null&&screen.setPointerCapture)screen.setPointerCapture(id);}catch(e){} }
+    function moveDrag(clientY){ if(!dragging)return;
+      const d=deltaPx(),ny=clamp(startPos-(clientY-startY),0,d); clearTransition(); setY(ny);}
+    function endDrag(){ dragging=false; screen.classList.remove('dragging'); try{if(screen.releasePointerCapture)screen.releasePointerCapture();}catch(e){} }
+    screen.addEventListener('touchstart',e=>{if(e.touches.length){startDrag(e.touches[0].clientY,null);}e.preventDefault();},{passive:false});
+    screen.addEventListener('touchmove', e=>{if(e.touches.length){moveDrag(e.touches[0].clientY);}e.preventDefault();},{passive:false});
+    screen.addEventListener('touchend', endDrag);
+    screen.addEventListener('pointerdown',e=>{startDrag(e.clientY,e.pointerId);e.preventDefault();});
+    window.addEventListener('pointermove',e=>{if(dragging)moveDrag(e.clientY);});
+    window.addEventListener('pointerup',endDrag);
+    screen.addEventListener('mousedown',e=>{if(e.button!==0)return;startDrag(e.clientY,null);e.preventDefault();});
+    window.addEventListener('mousemove',e=>{if(dragging)moveDrag(e.clientY);});
+    window.addEventListener('mouseup',endDrag);
+    screen.addEventListener('wheel',e=>{pauseAuto();const d=deltaPx(),ny=clamp(currentY()+e.deltaY*CONFIG.WHEEL_SPEED,0,d);
+      clearTransition();setY(ny);e.preventDefault();},{passive:false});
+    screen.addEventListener('keydown',e=>{
+      const d=deltaPx(),y=currentY(),pageStep=screen.clientHeight*0.85;
+      if(e.key==='ArrowDown'||e.key==='PageDown'){pauseAuto();setY(Math.min(d,y+(e.key==='PageDown'?pageStep:60)));e.preventDefault();}
+      if(e.key==='ArrowUp'||e.key==='PageUp'){pauseAuto();setY(Math.max(0,y-(e.key==='PageUp'?pageStep:60)));e.preventDefault();}
+      if(e.key==='Home'){pauseAuto();setY(0);e.preventDefault();}
+      if(e.key==='End'){pauseAuto();setY(d);e.preventDefault();}
+    });
   })();
 
-  async function ready(){
-    try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); postSize(); loop();
-  }
-  if (img.complete && img.naturalWidth) ready();
-  else img.addEventListener('load', ready, { once:true });
+  async function ready(){ try{ if(img.decode) await img.decode(); }catch(e){}
+    img.style.opacity='1'; setY(0); postSize(); loop(); }
+  if(img.complete&&img.naturalWidth)ready(); else img.addEventListener('load',ready,{once:true});
 
-  // === Auto-höjd till föräldersidan (Google Sites) ===
-  function postSize(){
-    const h = document.documentElement.scrollHeight;
-    parent.postMessage({ scrollDemoHeight: h }, "*");
-  }
-  window.addEventListener("load", postSize);
-  window.addEventListener("resize", postSize);
-  setInterval(postSize, 1500);
+  function postSize(){ const h=document.documentElement.scrollHeight;
+    parent.postMessage({scrollDemoHeight:h},"*"); }
+  window.addEventListener("load",postSize); window.addEventListener("resize",postSize);
+  if('ResizeObserver'in window){ new ResizeObserver(()=>postSize()).observe(document.documentElement);} else {setInterval(postSize,1500);}
 })();
 </script>
 </body>
