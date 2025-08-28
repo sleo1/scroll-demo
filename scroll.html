@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×530 – iPhone-fix (ingen scrollbar)</title>
+<title>Vit mobil 300×528 – auto+manuell scroll (kompakt)</title>
 <style>
   :root{
     --phone-w: 300px;
-    --phone-h: 530px;   /* sänkt 4 px för att undvika iOS overflow */
-    --screen-lr: 8px;   /* vänster/höger ram */
-    --screen-top: 24px; /* topp-ram */
-    --screen-bottom: 8px; /* botten-ram = lika smal som vänster/höger */
+    --phone-h: 528px;      /* kompakt höjd för att undvika iOS overflow */
+    --screen-lr: 8px;      /* vänster/höger ram */
+    --screen-top: 24px;    /* topp-ram */
+    --screen-bottom: 8px;  /* botten-ram = lika smal som vänster/höger */
     --radius-phone: 28px;
     --radius-screen: 20px;
   }
 
   * { box-sizing: border-box; }
-  html, body { height: 100%; overscroll-behavior: none; } /* iOS “rubber band” av */
+  html, body { height: 100%; overscroll-behavior: none; }  /* stäng av iOS “rubber band” */
   body{
     margin:0;
-    background:transparent;
+    background:transparent; /* låt Sites-bakgrunden lysa igenom */
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     display:grid; place-items:center;
     overflow:hidden; /* inga inre scrollbars i iframen */
@@ -49,9 +49,12 @@
     border-radius: var(--radius-screen);
     overflow:hidden; background:#fff;
     box-shadow: inset 0 0 18px rgba(0,0,0,.10);
-    touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
+    touch-action:none; cursor:grab;
+    user-select:none; -webkit-user-select:none;
+    overscroll-behavior: none;
   }
   .screen.dragging{ cursor:grabbing; }
+
   .longshot{
     width:100%; height:auto; display:block;
     transform:translateY(0); opacity:1;
@@ -76,13 +79,13 @@
 (() => {
   // === Auto-scroll konfig (stegvis) ===
   const CONFIG = {
-    STEP_DURATION: 4000,
-    STEP_GAP:      200,
-    TOP_PAUSE:     600,
-    BOTTOM_PAUSE:  600,
-    FADE_OUT_DUR:  500,
-    FADE_IN_DUR:   350,
-    RESUME_DELAY:  1500,  // inaktivitet efter manuell input innan auto återupptas
+    STEP_DURATION: 4000,  // ms per steg
+    STEP_GAP:      200,   // ms paus mellan steg
+    TOP_PAUSE:     600,   // ms paus i toppen
+    BOTTOM_PAUSE:  600,   // ms paus i botten
+    FADE_OUT_DUR:  500,   // ms fade-out före reset
+    FADE_IN_DUR:   350,   // ms fade-in efter reset
+    RESUME_DELAY:  1500,  // ms inaktivitet efter manuell input innan auto återupptas
     WHEEL_SPEED:   1.0
   };
 
@@ -93,10 +96,10 @@
   let pausedByUser = false;   // temporär paus under manuell interaktion
   let resumeTimer = null;
 
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-  const setY=y=>{ img.style.transform=`translateY(${-Math.max(0,Math.round(y))}px)`; };
-  const transition=(props,dur,easing='ease')=>{ img.style.transition=props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
-  const clearTransition=()=>{ img.style.transition='none'; };
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  const setY  = y => { img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
+  const transition = (props, dur, easing='ease') => { img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
+  const clearTransition = () => { img.style.transition = 'none'; };
 
   function deltaPx(){
     if(!img.naturalWidth || !img.naturalHeight) return 0;
@@ -108,7 +111,7 @@
     const m = /translateY\((-?\d+)px\)/.exec(img.style.transform);
     return m ? Math.max(0, -parseInt(m[1],10)) : 0;
   }
-  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
   function tempPauseAuto(){
     pausedByUser = true;
@@ -160,27 +163,27 @@
 
   // Manuell kontroll: touch, pointer, mouse, wheel, tangentbord
   (function enableManual(){
-    let dragging=false,startY=0,startPos=0;
+    let dragging=false, startY=0, startPos=0;
 
-    function startDrag(clientY,id){
+    function startDrag(clientY, id){
       tempPauseAuto();
-      dragging=true; screen.classList.add('dragging');
-      startY=clientY; startPos=currentY();
-      try{ if(id!=null && screen.setPointerCapture) screen.setPointerCapture(id);}catch(e){}
+      dragging = true; screen.classList.add('dragging');
+      startY = clientY; startPos = currentY();
+      try { if(id!=null && screen.setPointerCapture) screen.setPointerCapture(id); } catch(e){}
     }
     function moveDrag(clientY){
       if(!dragging) return;
-      const d=deltaPx(), ny=clamp(startPos-(clientY-startY),0,d);
+      const d = deltaPx(), ny = clamp(startPos - (clientY - startY), 0, d);
       clearTransition(); setY(ny);
     }
     function endDrag(){
-      dragging=false; screen.classList.remove('dragging');
-      try{ if(screen.releasePointerCapture) screen.releasePointerCapture(); }catch(e){}
+      dragging = false; screen.classList.remove('dragging');
+      try { if(screen.releasePointerCapture) screen.releasePointerCapture(); } catch(e){}
     }
 
     // Touch
-    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY,null);} e.preventDefault(); }, {passive:false});
-    screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY);} e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY, null); } e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
     screen.addEventListener('touchend',   endDrag);
 
     // Pointer
@@ -189,25 +192,25 @@
     window.addEventListener('pointerup',   endDrag);
 
     // Mouse fallback
-    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY,null); e.preventDefault(); });
+    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY, null); e.preventDefault(); });
     window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
     window.addEventListener('mouseup',   endDrag);
 
     // Wheel
     screen.addEventListener('wheel', e=>{
       tempPauseAuto();
-      const d=deltaPx(), y=currentY();
-      const ny=clamp(y + e.deltaY*CONFIG.WHEEL_SPEED, 0, d);
+      const d = deltaPx(), y = currentY();
+      const ny = clamp(y + e.deltaY * CONFIG.WHEEL_SPEED, 0, d);
       clearTransition(); setY(ny);
       e.preventDefault();
     }, {passive:false});
 
     // Tangentbord
     screen.addEventListener('keydown', e=>{
-      const d=deltaPx(); if(!d) return;
-      const y=currentY(), page=screen.clientHeight*0.85;
-      if (e.key==='ArrowDown'||e.key==='PageDown'){ tempPauseAuto(); setY(Math.min(d, y + (e.key==='PageDown'?page:60))); e.preventDefault(); }
-      if (e.key==='ArrowUp'  ||e.key==='PageUp'){   tempPauseAuto(); setY(Math.max(0, y - (e.key==='PageUp'?page:60))); e.preventDefault(); }
+      const d = deltaPx(); if(!d) return;
+      const y = currentY(), page = screen.clientHeight * 0.85;
+      if (e.key==='ArrowDown' || e.key==='PageDown'){ tempPauseAuto(); setY(Math.min(d, y + (e.key==='PageDown'?page:60))); e.preventDefault(); }
+      if (e.key==='ArrowUp'   || e.key==='PageUp'){   tempPauseAuto(); setY(Math.max(0, y - (e.key==='PageUp'?page:60))); e.preventDefault(); }
       if (e.key==='Home'){ tempPauseAuto(); setY(0); e.preventDefault(); }
       if (e.key==='End'){  tempPauseAuto(); setY(d); e.preventDefault(); }
     });
@@ -220,15 +223,15 @@
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
 
-  // Auto-höjd -> Google Sites (om du använder varianten med message-lyssnare)
+  // Auto-höjd -> Google Sites (om du använder lyssnarkoden i Sites)
   function postSize(){
-    const h=document.documentElement.scrollHeight;
+    const h = document.documentElement.scrollHeight;
     parent.postMessage({ scrollDemoHeight: h }, "*");
   }
   window.addEventListener("load", postSize);
   window.addEventListener("resize", postSize);
   if ('ResizeObserver' in window) {
-    const ro=new ResizeObserver(()=>postSize());
+    const ro = new ResizeObserver(()=>postSize());
     ro.observe(document.documentElement);
     ro.observe(screen);
   } else {
