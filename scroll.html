@@ -9,56 +9,110 @@
     --phone-w: 420px;
     --phone-h: 880px;
     --screen-w: 390px;
-    --screen-h: 800px; /* justera om du vill */
+    --screen-h: 600px; /* Sänkt så bilden blir längre än viewporten */
     --radius-phone: 60px;
     --radius-screen: 40px;
     --bg: #eceff1;
+    --chrome-shadow: rgba(0,0,0,.5);
   }
-  *{ box-sizing: border-box; }
+  * { box-sizing: border-box; }
   html, body { height: 100%; }
   body{
     margin:0; display:grid; place-items:center; height:100%;
-    background: var(--bg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   }
+
+  /* Telefonkropp */
   .phone{
-    position:relative; width:var(--phone-w); height:var(--phone-h);
+    position:relative;
+    width:var(--phone-w); height:var(--phone-h);
     background:#111; border-radius:var(--radius-phone);
-    box-shadow:0 20px 60px rgba(0,0,0,.5), inset 0 0 0 2px #222; overflow:hidden;
+    box-shadow:0 24px 60px var(--chrome-shadow), inset 0 0 0 2px #222;
+    overflow:hidden;
   }
+  /* Sidobevels för mer realism */
+  .phone::before, .phone::after{
+    content:""; position:absolute; top:0; bottom:0; width:6px; pointer-events:none;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.35));
+  }
+  .phone::before{ left:0; }
+  .phone::after{ right:0; }
+
+  /* “Knappar” på sidan */
+  .btn{
+    position:absolute; left:-2px; width:6px; border-radius:3px; background:#2a2a2a;
+    box-shadow: inset 0 0 4px rgba(0,0,0,.6);
+  }
+  .btn.volup{ top:160px; height:48px; }
+  .btn.voldn{ top:220px; height:48px; }
+  .btn.silent{ top:120px; height:30px; }
+
+  /* Notch + högtalare + kamera */
   .notch{
     position:absolute; top:10px; left:50%; transform:translateX(-50%);
-    width:160px; height:25px; background:#000; border-radius:0 0 12px 12px; z-index:2;
-    box-shadow:0 2px 6px rgba(0,0,0,.4);
+    width:160px; height:26px; background:#000; border-radius:0 0 14px 14px;
+    box-shadow:0 2px 6px rgba(0,0,0,.4); z-index:2;
   }
+  .speaker{
+    position:absolute; top:6px; left:50%; transform:translateX(-50%);
+    width:64px; height:6px; background:#1a1a1a; border-radius:3px;
+  }
+  .cam{
+    position:absolute; top:5px; right:18px; width:9px; height:9px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #2a6cff, #0a0a0a 60%);
+    box-shadow:0 0 4px rgba(42,108,255,.6);
+  }
+
+  /* Skärmen */
   .screen{
     position:absolute; top:40px; left:15px;
     width:var(--screen-w); height:var(--screen-h);
     border-radius:var(--radius-screen); overflow:hidden; background:#fff;
     box-shadow: inset 0 0 40px rgba(0,0,0,.15);
   }
+
+  /* Långa bilden som scrollas */
   .longshot{
     width:100%; height:auto; display:block; transform:translateY(0);
     will-change: transform;
-    /* animation sätts dynamiskt i JS */
+    /* animation sätts i JS för att anpassa tempo/pauser efter bildhöjd */
   }
+
+  /* Responsiv nedskalning om sidan bäddas in smalt */
+  .scale-wrap { transform-origin: top left; }
+  @media (max-width: 460px){ .scale-wrap{ transform: scale(0.9); } }
+  @media (max-width: 420px){ .scale-wrap{ transform: scale(0.8); } }
+  @media (max-width: 380px){ .scale-wrap{ transform: scale(0.72); } }
 </style>
 </head>
 <body>
-  <div class="phone" role="img" aria-label="Telefonram med auto-scrollande förhandsvisning">
-    <div class="notch"></div>
-    <div class="screen">
-      <img id="longshot" class="longshot" 
-           src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg" 
-           alt="Lång sida">
+  <div class="scale-wrap">
+    <div class="phone" role="img" aria-label="Telefonram med auto-scrollande förhandsvisning">
+      <div class="btn silent"></div>
+      <div class="btn volup"></div>
+      <div class="btn voldn"></div>
+
+      <div class="notch">
+        <div class="speaker"></div>
+        <div class="cam"></div>
+      </div>
+
+      <div class="screen">
+        <img id="longshot" class="longshot"
+             src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
+             alt="Lång sida">
+      </div>
     </div>
   </div>
 
 <script>
 (function(){
-  const TOP_PAUSE = 2.0;      // sekunder stilla i toppen
-  const BOTTOM_PAUSE = 2.0;   // sekunder stilla i botten
-  const DOWN_SPEED = 250;     // px/sek nedåt (känns som “manuell scroll”)
-  const UP_SPEED = 300;       // px/sek uppåt
+  // Pauser & hastigheter (px/s) för “manuell scroll”-känsla
+  const TOP_PAUSE = 2.0;
+  const BOTTOM_PAUSE = 2.0;
+  const DOWN_SPEED = 250;
+  const UP_SPEED = 300;
 
   const img = document.getElementById('longshot');
   const screen = document.querySelector('.screen');
@@ -70,9 +124,9 @@
     const upDur   = Math.max(0.001, delta / UP_SPEED);
     const total   = TOP_PAUSE + downDur + BOTTOM_PAUSE + upDur;
 
-    const pTopPauseEnd   = (TOP_PAUSE / total) * 100;
-    const pDownEnd       = ((TOP_PAUSE + downDur) / total) * 100;
-    const pBottomPauseEnd= ((TOP_PAUSE + downDur + BOTTOM_PAUSE) / total) * 100;
+    const pTopPauseEnd    = (TOP_PAUSE / total) * 100;
+    const pDownEnd        = ((TOP_PAUSE + downDur) / total) * 100;
+    const pBottomPauseEnd = ((TOP_PAUSE + downDur + BOTTOM_PAUSE) / total) * 100;
 
     const styleId = 'dyn-keys';
     let styleEl = document.getElementById(styleId);
@@ -88,4 +142,39 @@
         0% { transform: translateY(0); }
         ${pTopPauseEnd.toFixed(2)}% { transform: translateY(0); }
         ${pDownEnd.toFixed(2)}% { transform: translateY(-${d}px); }
-        ${pBottomPauseEnd.toFixe
+        ${pBottomPauseEnd.toFixed(2)}% { transform: translateY(-${d}px); }
+        100% { transform: translateY(0); }
+      }
+    `;
+    img.style.animation = \`scrollYUser \${total.toFixed(3)}s linear infinite\`;
+  }
+
+  function recalc(){
+    if(!img.naturalWidth || !img.naturalHeight) return;
+
+    const scale = screen.clientWidth / img.naturalWidth;
+    const imgHeight = img.naturalHeight * scale;
+    const visHeight = screen.clientHeight;
+    const delta = Math.max(0, imgHeight - visHeight);
+
+    if (delta <= 0) {
+      // Ingen scroll om bilden inte är längre än viewporten
+      img.style.animation = 'none';
+      img.style.transform = 'translateY(0)';
+      return;
+    }
+    buildAnimation(delta);
+  }
+
+  async function ready(){
+    try { if (img.decode) await img.decode(); } catch(e){}
+    if (img.complete && img.naturalWidth) recalc();
+    else img.addEventListener('load', recalc, { once:true });
+  }
+
+  window.addEventListener('resize', recalc, { passive:true });
+  ready();
+})();
+</script>
+</body>
+</html>
