@@ -3,37 +3,36 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×(kompakt) – auto + manuell scroll</title>
+<title>Mobil 300×492 – statisk höjd, auto + manuell scroll</title>
 <style>
   :root{
-    --phone-w: 300px;       /* fast bredd */
-    --bezel: 6px;           /* uniform smal ram runt om */
-    --screen-h: 480px;      /* synlig höjd – justera vid behov */
-    --radius-phone: 20px;   /* lite tajtare rundning */
+    --phone-w: 300px;   /* fast bredd */
+    --bezel: 6px;       /* jämn ram runt om */
+    --screen-h: 480px;  /* synlig höjd */
+    --radius-phone: 20px;
     --radius-screen: 16px;
   }
 
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body{
+  *{ box-sizing: border-box; }
+  html, body{
     margin:0;
+    width:300px;             /* matchar iframens bredd */
+    height:492px;            /* exakt totalhöjd (480 + 2*6) */
+    overflow:hidden;         /* inga inre scrollbars */
     background:transparent;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    display:grid; place-items:center;
-    overflow:hidden; /* inga inre scrollbars i iframen */
   }
 
   .phone{
     position:relative;
     width:var(--phone-w);
-    height: calc(var(--screen-h) + (var(--bezel) * 2)); /* kompakt totalhöjd */
+    height: calc(var(--screen-h) + (var(--bezel) * 2));
     background:#fff;
     border-radius: var(--radius-phone);
-    box-shadow: inset 0 0 0 1px #e0e0e0; /* tunn, neutral kant */
+    box-shadow: inset 0 0 0 1px #e0e0e0;
     overflow:hidden;
   }
 
-  /* Skärmen – lika avstånd på alla kanter */
   .screen{
     position:absolute;
     top: var(--bezel);
@@ -44,20 +43,16 @@
     overflow:hidden;
     background:#fff;
     box-shadow: inset 0 0 14px rgba(0,0,0,.08);
-    touch-action:none;       /* vi hanterar gester själva */
-    cursor: grab;
+    touch-action:none; cursor:grab;
     user-select:none; -webkit-user-select:none;
   }
   .screen.dragging{ cursor:grabbing; }
 
   .longshot{
-    width:100%;
-    height:auto;
-    display:block;
-    transform: translateY(0);
-    opacity: 1;
-    will-change: transform, opacity;
+    width:100%; height:auto; display:block;
+    transform: translateY(0); opacity:1;
     user-select:none; -webkit-user-drag:none; pointer-events:none;
+    will-change: transform, opacity;
   }
 </style>
 </head>
@@ -72,7 +67,7 @@
 
 <script>
 (() => {
-  // === Konfig (auto-scroll i steg) ===
+  // — Auto-scroll i steg —
   const CONFIG = {
     STEP_DURATION: 4000,
     STEP_GAP:      200,
@@ -80,7 +75,7 @@
     BOTTOM_PAUSE:  600,
     FADE_OUT_DUR:  500,
     FADE_IN_DUR:   350,
-    RESUME_DELAY:  1500,  // paus tills auto återupptas efter manuell interaktion
+    RESUME_DELAY:  1500,  // paus efter manuell interaktion
     WHEEL_SPEED:   1.0
   };
 
@@ -93,7 +88,7 @@
 
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
-  const transition=(props,dur,easing='ease')=>{ img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
+  const transition=(props,dur,easing='ease')=>{ img.style.transition=props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
   const clearTransition=()=>{ img.style.transition='none'; };
 
   function deltaPx(){
@@ -118,7 +113,7 @@
   async function animateStep(fromY, toY){
     clearTransition(); setY(fromY); await sleep(20);
     transition(['transform'], CONFIG.STEP_DURATION, 'ease-in-out');
-    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postSize();
+    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition();
   }
   async function fadeReset(){
     clearTransition(); await sleep(20);
@@ -126,14 +121,14 @@
     await sleep(CONFIG.FADE_OUT_DUR);
     clearTransition(); setY(0); await sleep(20);
     transition(['opacity'], CONFIG.FADE_IN_DUR, 'ease'); img.style.opacity = '1';
-    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize();
+    await sleep(CONFIG.FADE_IN_DUR); clearTransition();
   }
 
   async function loop(){
     if(running) return; running = true;
     while(running){
       const d = deltaPx();
-      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); continue; }
 
       while(pausedByUser) { await sleep(120); }
 
@@ -155,7 +150,7 @@
     }
   }
 
-  // — Manuell kontroll: touch, pointer, mouse, wheel, tangentbord —
+  // — Manuell scroll: touch/pointer/mus/scrollhjul/tangentbord —
   (function enableManual(){
     let dragging=false, startY=0, startPos=0;
 
@@ -211,27 +206,13 @@
     });
   })();
 
+  // Init
   async function ready(){
     try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); postSize(); loop();
+    img.style.opacity='1'; setY(0); loop();
   }
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
-
-  // — Auto-höjd till Google Sites —
-  function postSize(){
-    const h = document.documentElement.scrollHeight;
-    parent.postMessage({ scrollDemoHeight: h }, "*");
-  }
-  window.addEventListener("load", postSize);
-  window.addEventListener("resize", postSize);
-  if ('ResizeObserver' in window) {
-    const ro = new ResizeObserver(()=>postSize());
-    ro.observe(document.documentElement);
-    ro.observe(screen);
-  } else {
-    setInterval(postSize, 1500);
-  }
 })();
 </script>
 </body>
