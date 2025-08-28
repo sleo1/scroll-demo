@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×520 – auto + manuell scroll</title>
+<title>Mobil 300×520 – realism + auto & manuell scroll</title>
 <style>
   :root{
     --phone-w: 300px;   /* fast bredd */
-    --phone-h: 520px;   /* lite lägre helhet än 534 */
-    --screen-lr: 8px;   /* smalare sidokanter */
+    --phone-h: 520px;   /* något lägre helhet */
+    --screen-lr: 8px;   /* sidokanter */
     --screen-top: 22px; /* avstånd från ovankant till skärm */
     --screen-h: 458px;  /* skärmhöjd – ger tydlig scroll */
     --radius-phone: 26px;
@@ -25,6 +25,7 @@
     overflow:hidden; /* inga inre scrollbars i iframen */
   }
 
+  /* Telefonkropp */
   .phone{
     position:relative;
     width:var(--phone-w); height:var(--phone-h);
@@ -33,7 +34,16 @@
     box-shadow: inset 0 0 0 1px #e0e0e0;
     overflow:hidden;
   }
+  /* Subtil metallisk innerkant (highlight + svag mörk linje) */
+  .phone::before{
+    content:"";
+    position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.85),
+      inset 0 0 0 2px rgba(0,0,0,.04);
+  }
 
+  /* Notch med högtalare & kamerapunkt */
   .notch{
     position:absolute; top:6px; left:50%; transform:translateX(-50%);
     width:84px; height:12px; background:#eee;
@@ -41,7 +51,20 @@
     box-shadow: inset 0 0 2px rgba(0,0,0,.12);
     z-index:2;
   }
+  .notch .speaker{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:52px; height:4px; border-radius:999px;
+    background: linear-gradient(#cfcfcf,#bdbdbd);
+    box-shadow: inset 0 1px 1px rgba(0,0,0,.15);
+  }
+  .notch .cam{
+    position:absolute; right:8px; top:50%; transform:translateY(-50%);
+    width:7px; height:7px; border-radius:50%;
+    background: radial-gradient(circle at 30% 30%, #2a6cff, #0b0b0b 60%);
+    box-shadow: 0 0 3px rgba(42,108,255,.45);
+  }
 
+  /* Skärmen (viewport) */
   .screen{
     position:absolute;
     top: var(--screen-top);
@@ -58,6 +81,22 @@
   }
   .screen.dragging{ cursor: grabbing; }
 
+  /* Svag glasreflektion över skärmen */
+  .screen::after{
+    content:"";
+    position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background: linear-gradient(to bottom, rgba(255,255,255,.06), rgba(255,255,255,0) 40%);
+  }
+
+  /* Home-indikator i botten (iOS-lik) */
+  .homebar{
+    position:absolute; left:50%; bottom:8px; transform:translateX(-50%);
+    width:72px; height:4px; border-radius:2px;
+    background:#cfcfcf; opacity:.85;
+    pointer-events:none;
+  }
+
+  /* Långa bilden */
   .longshot{
     width:100%;
     height:auto;
@@ -71,11 +110,13 @@
 </head>
 <body>
   <div class="phone" role="region" aria-label="Telefonram med förhandsvisning">
-    <div class="notch"></div>
+    <div class="notch"><span class="speaker" aria-hidden="true"></span><span class="cam" aria-hidden="true"></span></div>
+
     <div class="screen" id="screen" tabindex="0" aria-label="Skärmområde med rullbar förhandsvisning">
       <img id="longshot" class="longshot"
            src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
            alt="Förhandsvisning av lång sida">
+      <div class="homebar" aria-hidden="true"></div>
     </div>
   </div>
 
