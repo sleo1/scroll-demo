@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – transparent bg, smalare kanter</title>
+<title>Vit mobil 300×534 – längre scroll & skugga</title>
 <style>
   :root{
     --phone-w: 300px;     /* fast bredd */
@@ -26,16 +26,36 @@
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   }
 
-  /* Telefonkropp: vit, utan yttre grå "glow" */
+  /* Scen med extra luft under för skuggan */
+  .stage{
+    display:grid;
+    place-items:center;
+    padding-bottom: 38px; /* extra utrymme för skugga */
+  }
+
+  /* Telefonkropp: vit, tunn kant, utan grå halo */
   .phone{
     position:relative;
     width:var(--phone-w);
     height:var(--phone-h);
     background:#fff;
     border-radius: var(--radius-phone);
-    /* tunn, neutral kant för realism utan grå halo */
     box-shadow: inset 0 0 0 1px #e5e5e5;
     overflow:hidden;
+  }
+
+  /* Skugga under telefon (ellips) */
+  .shadow{
+    position:absolute;
+    left:50%;
+    bottom:-20px;               /* placerad strax under telefonen */
+    transform: translateX(-50%);
+    width: 64%;
+    height: 16px;
+    background: rgba(0,0,0,.12);
+    filter: blur(8px);
+    border-radius: 999px;
+    pointer-events:none;
   }
 
   /* Diskret notch (ljus) */
@@ -47,7 +67,7 @@
     z-index:2;
   }
 
-  /* Skärmen: smalare sidokanter (vänster/höger) */
+  /* Skärmen: smalare sidokanter */
   .screen{
     position:absolute;
     top: var(--screen-top);
@@ -72,19 +92,22 @@
 </style>
 </head>
 <body>
-  <div class="phone">
-    <div class="notch"></div>
-    <div class="screen" id="screen">
-      <img id="longshot" class="longshot"
-           src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
-           alt="Lång sida">
+  <div class="stage">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen" id="screen">
+        <img id="longshot" class="longshot"
+             src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
+             alt="Lång sida">
+      </div>
+      <div class="shadow"></div>
     </div>
   </div>
 
 <script>
 (() => {
-  // === Stegvis auto-scroll (3 s/drag) med fade-reset i botten ===
-  const STEP_DURATION = 3000; // ms per scrollsteg
+  // === Stegvis auto-scroll (4 s/drag) med fade-reset i botten ===
+  const STEP_DURATION = 4000; // ms per scrollsteg (förlängt +1 s)
   const STEP_GAP      = 200;  // liten paus mellan steg
   const TOP_PAUSE     = 600;  // paus i toppen
   const BOTTOM_PAUSE  = 600;  // paus i botten
@@ -154,14 +177,6 @@
 
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
-
-  // (Valfritt) auto-höjd till föräldersida om du vill använda postMessage
-  // function sendHeight(){
-  //   const h = document.documentElement.scrollHeight;
-  //   parent.postMessage({scrollDemoHeight: h}, "*");
-  // }
-  // window.addEventListener("load", sendHeight);
-  // window.addEventListener("resize", sendHeight);
 })();
 </script>
 </body>
