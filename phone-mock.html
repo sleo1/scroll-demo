@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Hand-mockup med inbäddad skärm</title>
+<style>
+  :root{
+    /* Basbredd – ändra om du vill visa bilden större/mindre */
+    --mock-width: 600px;
+
+    /* Skärmytan i procent av bildens storlek (trefsa dessa 4 för perfekt passning) */
+    --screen-top:   13.0%;  /* AVSTÅND FRÅN TOPPEN av bilden */
+    --screen-left:  27.5%;  /* AVSTÅND FRÅN VÄNSTER */
+    --screen-width: 45.0%;  /* SKÄRMBREDD relativt bildens bredd */
+    --screen-height:74.0%;  /* SKÄRMHÖJD relativt bildens höjd */
+
+    /* Rundning på skärmens hörn – matcha din mockup */
+    --screen-radius: 26px;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:transparent}
+  .mock{
+    width:min(100%, var(--mock-width));
+    position:relative;
+  }
+  .mock > img{
+    width:100%; height:auto; display:block;
+    vertical-align:middle;
+  }
+  /* Skärmens “hål” ovanpå bilden */
+  .screen-hole{
+    position:absolute;
+    top:var(--screen-top);
+    left:var(--screen-left);
+    width:var(--screen-width);
+    height:var(--screen-height);
+    border-radius:var(--screen-radius);
+    overflow:hidden;
+    /* valfri liten inre skugga för att smälta ihop med mockupens kanter */
+    box-shadow: inset 0 0 10px rgba(0,0,0,.06);
+    background:#fff; /* vit display-bakgrund bakom iframen */
+  }
+  .screen-hole iframe{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    border:0; background:transparent; overflow:hidden;
+  }
+
+  /* iOS/små fixar */
+  ::-webkit-scrollbar{width:0;height:0}
+</style>
+</head>
+<body>
+  <div class="mock" aria-label="Telefonmockup med inbäddad förhandsvisning">
+    <!-- Din hand-mockup-bild -->
+    <img src="https://sleo1.github.io/scroll-demo/hand-mockup-2.png" alt="Telefon i hand">
+
+    <!-- Ytan där din scrolling visas -->
+    <div class="screen-hole">
+      <iframe
+        src="https://sleo1.github.io/scroll-demo/screen-only.html"
+        loading="lazy"
+        allowfullscreen
+        scrolling="no"
+        referrerpolicy="no-referrer"
+      ></iframe>
+    </div>
+  </div>
+</body>
+</html>
