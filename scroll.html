@@ -3,178 +3,83 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Auto-scroll i mobilram (med pauser)</title>
+<title>Auto-scroll i mobilram</title>
 <style>
-  :root{
-    --phone-w: 420px;
-    --phone-h: 880px;
-    --screen-w: 390px;
-    --screen-h: 520px; /* Sänkt för att G A R A N T E R A delta och tydlig scroll */
-    --radius-phone: 60px;
-    --radius-screen: 40px;
-    --bg: #eceff1;
-    --chrome-shadow: rgba(0,0,0,.5);
+  body {
+    margin: 0;
+    display: grid;
+    place-items: center;
+    height: 100vh;
+    background: #eceff1;
   }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body{
-    margin:0; display:grid; place-items:center; height:100%;
-    background: var(--bg);
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  .phone {
+    position: relative;
+    width: 420px;
+    height: 880px;
+    background: #111;
+    border-radius: 60px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    overflow: hidden;
   }
-
-  /* Telefonkropp */
-  .phone{
-    position:relative;
-    width:var(--phone-w); height:var(--phone-h);
-    background:#111; border-radius:var(--radius-phone);
-    box-shadow:0 24px 60px var(--chrome-shadow), inset 0 0 0 2px #222;
-    overflow:hidden;
+  .screen {
+    position: absolute;
+    top: 40px;
+    left: 15px;
+    width: 390px;
+    height: 800px;
+    border-radius: 40px;
+    overflow: hidden;
+    background: #fff;
   }
-  /* Sidobevels */
-  .phone::before, .phone::after{
-    content:""; position:absolute; top:0; bottom:0; width:6px; pointer-events:none;
-    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.35));
+  .longshot {
+    width: 100%;
+    height: auto;
+    display: block;
+    transform: translateY(0);
+    animation: scrollY 18s ease-in-out infinite;
+    animation-delay: 1s;
   }
-  .phone::before{ left:0; }
-  .phone::after{ right:0; }
-
-  /* “Knappar” */
-  .btn{
-    position:absolute; left:-2px; width:6px; border-radius:3px; background:#2a2a2a;
-    box-shadow: inset 0 0 4px rgba(0,0,0,.6);
+  @keyframes scrollY {
+    0%   { transform: translateY(0); }
+    45%  { transform: translateY(calc(var(--deltaY, 0px) * -1)); }
+    55%  { transform: translateY(calc(var(--deltaY, 0px) * -1)); }
+    100% { transform: translateY(0); }
   }
-  .btn.volup{ top:160px; height:48px; }
-  .btn.voldn{ top:220px; height:48px; }
-  .btn.silent{ top:120px; height:30px; }
-
-  /* Notch + högtalare + kamera */
-  .notch{
-    position:absolute; top:10px; left:50%; transform:translateX(-50%);
-    width:160px; height:26px; background:#000; border-radius:0 0 14px 14px;
-    box-shadow:0 2px 6px rgba(0,0,0,.4); z-index:2;
+  /* Liten "notch" för realism */
+  .notch {
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    width: 160px;
+    height: 25px;
+    background: #000;
+    border-radius: 0 0 12px 12px;
   }
-  .speaker{
-    position:absolute; top:6px; left:50%; transform:translateX(-50%);
-    width:64px; height:6px; background:#1a1a1a; border-radius:3px;
-  }
-  .cam{
-    position:absolute; top:5px; right:18px; width:9px; height:9px; border-radius:50%;
-    background: radial-gradient(circle at 30% 30%, #2a6cff, #0a0a0a 60%);
-    box-shadow:0 0 4px rgba(42,108,255,.6);
-  }
-
-  /* Skärmen */
-  .screen{
-    position:absolute; top:40px; left:15px;
-    width:var(--screen-w); height:var(--screen-h);
-    border-radius:var(--radius-screen); overflow:hidden; background:#fff;
-    box-shadow: inset 0 0 40px rgba(0,0,0,.15);
-  }
-
-  /* Långa bilden som scrollas */
-  .longshot{
-    width:100%; height:auto; display:block; transform:translateY(0);
-    will-change: transform;
-    /* animation sätts i JS */
-  }
-
-  /* Skala ner om inbäddningen är smal */
-  .scale-wrap { transform-origin: top left; }
-  @media (max-width: 460px){ .scale-wrap{ transform: scale(0.9); } }
-  @media (max-width: 420px){ .scale-wrap{ transform: scale(0.8); } }
-  @media (max-width: 380px){ .scale-wrap{ transform: scale(0.72); } }
 </style>
 </head>
 <body>
-  <div class="scale-wrap">
-    <div class="phone" role="img" aria-label="Telefonram med auto-scrollande förhandsvisning">
-      <div class="btn silent"></div>
-      <div class="btn volup"></div>
-      <div class="btn voldn"></div>
-
-      <div class="notch">
-        <div class="speaker"></div>
-        <div class="cam"></div>
-      </div>
-
-      <div class="screen">
-        <img id="longshot" class="longshot"
-             src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
-             alt="Lång sida">
-      </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <img id="longshot" class="longshot"
+        src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
+        alt="Long page" />
     </div>
   </div>
 
 <script>
-(function(){
-  // Pauser & hastigheter (px/s) för “manuell scroll”-känsla
-  const TOP_PAUSE = 2.0;
-  const BOTTOM_PAUSE = 2.0;
-  const DOWN_SPEED = 250;
-  const UP_SPEED = 300;
-
-  const img = document.getElementById('longshot');
+  const imgEl = document.getElementById('longshot');
   const screen = document.querySelector('.screen');
-
-  function px(v){ return Math.max(0, Math.round(v)); }
-
-  function buildAnimation(delta){
-    const downDur = Math.max(0.001, delta / DOWN_SPEED);
-    const upDur   = Math.max(0.001, delta / UP_SPEED);
-    const total   = TOP_PAUSE + downDur + BOTTOM_PAUSE + upDur;
-
-    const pTopPauseEnd    = (TOP_PAUSE / total) * 100;
-    const pDownEnd        = ((TOP_PAUSE + downDur) / total) * 100;
-    const pBottomPauseEnd = ((TOP_PAUSE + downDur + BOTTOM_PAUSE) / total) * 100;
-
-    const styleId = 'dyn-keys';
-    let styleEl = document.getElementById(styleId);
-    if(!styleEl){
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      document.head.appendChild(styleEl);
-    }
-
-    const d = px(delta);
-    styleEl.textContent = `
-      @keyframes scrollYUser {
-        0% { transform: translateY(0); }
-        ${pTopPauseEnd.toFixed(2)}% { transform: translateY(0); }
-        ${pDownEnd.toFixed(2)}% { transform: translateY(-${d}px); }
-        ${pBottomPauseEnd.toFixed(2)}% { transform: translateY(-${d}px); }
-        100% { transform: translateY(0); }
-      }
-    `;
-    img.style.animation = \`scrollYUser \${total.toFixed(3)}s linear infinite\`;
-  }
-
-  function recalc(){
-    if(!img.naturalWidth || !img.naturalHeight) return;
-
-    const scale = screen.clientWidth / img.naturalWidth;
-    const imgHeight = img.naturalHeight * scale;
+  function recalc() {
+    const scale = screen.clientWidth / imgEl.naturalWidth;
     const visHeight = screen.clientHeight;
+    const imgHeight = imgEl.naturalHeight * scale;
     const delta = Math.max(0, imgHeight - visHeight);
-
-    if (delta <= 0) {
-      // Ingen scroll om bilden inte är längre än viewporten
-      img.style.animation = 'none';
-      img.style.transform = 'translateY(0)';
-      return;
-    }
-    buildAnimation(delta);
+    document.documentElement.style.setProperty('--deltaY', delta + 'px');
   }
-
-  async function ready(){
-    try { if (img.decode) await img.decode(); } catch(e){}
-    if (img.complete && img.naturalWidth) recalc();
-    else img.addEventListener('load', recalc, { once:true });
-  }
-
-  window.addEventListener('resize', recalc, { passive:true });
-  ready();
-})();
+  imgEl.addEventListener('load', recalc);
+  if (imgEl.complete) recalc();
+  window.addEventListener('resize', recalc);
 </script>
 </body>
 </html>
