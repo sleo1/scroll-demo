@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scroll i iPhone-mockup</title>
+<style>
+  :root{
+    /* Justera dessa tre procentsiffror så skärmen linjerar perfekt med bilden */
+    --screen-top: 16.5%;   /* avstånd från bildens topp till skärmens topp */
+    --screen-left: 33.5%;  /* från vänster kant till skärmens vänster */
+    --screen-width: 32.5%; /* skärmens bredd relativt hela bilden */
+
+    /* Telefonens skärm-proportion (din scroll.html är 300×528) */
+    --phone-w: 300;
+    --phone-h: 528;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  /* Behåll bilden i egen naturlig storlek och positionera overlay ovanpå */
+  .mockup {
+    position: relative;
+    display: inline-block;
+    line-height: 0;
+  }
+
+  .mockup > img {
+    display: block;
+    height: auto;
+    max-width: 100%;
+  }
+
+  /* Rutan där vi lägger in scroll-iframen – positionerad i procent över bilden */
+  .screen {
+    position: absolute;
+    top: var(--screen-top);
+    left: var(--screen-left);
+    width: var(--screen-width);
+    /* behåll samma proportion som telefonens skärm */
+    aspect-ratio: var(--phone-w) / var(--phone-h);
+    border-radius: 22px;       /* runda hörn – trimma vid behov */
+    overflow: hidden;
+    /* vill du “tilta” skärmen lite kan du leka med transform här: */
+    /* transform: rotate(-1.2deg) skewX(-1deg); */
+  }
+
+  /* Vi lägger vår scroll.html i en 300×528-låda och skalar upp/ner den exakt
+     så den fyller .screen utan att tappa proportioner */
+  .fit {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: calc(var(--phone-w) * 1px);
+    height: calc(var(--phone-h) * 1px);
+    transform-origin: top left;
+    /* transform sätts i JS för att skala/centrera exakt */
+  }
+
+  .fit > iframe {
+    width: calc(var(--phone-w) * 1px);
+    height: calc(var(--phone-h) * 1px);
+    border: 0;
+    display: block;
+    background: transparent;
+  }
+</style>
+</head>
+<body>
+  <div class="mockup" id="mockup">
+    <img
+      src="https://www.ls.graphics/avif-proxy/https%3A%2F%2Fcdn.prod.website-files.com%2F625816a3416990dd61391b9b%2F67acb0e488af82015239ee99_Free_Realistic_iPhone_16_Pro_in_Hand_Mockup.avif"
+      alt="iPhone-mockup i hand">
+    <div class="screen" id="screen">
+      <div class="fit" id="fit">
+        <iframe
+          src="https://sleo1.github.io/scroll-demo/scroll.html"
+          title="Scrollförhandsvisning i telefon">
+        </iframe>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Skala 300×528-innehållet så det fyller .screen proportionellt
+  function resize() {
+    const screen = document.getElementById('screen');
+    const fit = document.getElementById('fit');
+    if (!screen || !fit) return;
+
+    const targetW = screen.clientWidth;
+    const targetH = screen.clientHeight;
+    const baseW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--phone-w')) || 300;
+    const baseH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--phone-h')) || 528;
+
+    const scale = Math.min(targetW / baseW, targetH / baseH);
+    const scaledW = baseW * scale;
+    const scaledH = baseH * scale;
+
+    fit.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    // inget behov att sätta width/height här (de är redan baseW/baseH)
+  }
+
+  window.addEventListener('load', resize);
+  window.addEventListener('resize', resize);
+</script>
+</body>
+</html>
