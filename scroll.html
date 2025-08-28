@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – auto-höjd & realistisk skugga</title>
+<title>Vit mobil 300×534 – tunn, låg skugga & auto-höjd</title>
 <style>
   :root{
     --phone-w: 300px;
@@ -22,14 +22,13 @@
     background:transparent; /* alltid transparent */
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     display:grid; place-items:center;
-    /* Förhindra inre scrollbars i iframen */
-    overflow: hidden;
+    overflow: hidden; /* inga inre scrollbars i iframen */
   }
 
   .stage{
     display:grid;
     place-items:center;
-    padding-bottom: 60px; /* luft för skuggan */
+    padding-bottom: 30px; /* lite luft under för skuggan (sänkt från 60px) */
     position: relative;
   }
 
@@ -44,21 +43,21 @@
     z-index:2;
   }
 
-  /* realistisk, mjuk ellips-skugga under telefonen */
+  /* Tunn, låg ellips-skugga nära botten (mer realistisk) */
   .shadow{
-  position:absolute;
-  bottom:8px;               /* närmare botten */
-  left:50%;
-  transform:translateX(-50%);
-  width: 260px;             /* lite bredare än telefonen (300px) */
-  height: 18px;             /* lägre, tunn ellips */
-  background: radial-gradient(ellipse at center,
-              rgba(0,0,0,0.15) 0%,
-              rgba(0,0,0,0) 80%);
-  filter: blur(10px);
-  z-index:1;
-  pointer-events:none;
-}
+    position:absolute;
+    bottom:8px;                        /* närmare botten */
+    left:50%;
+    transform:translateX(-50%);
+    width: 260px;                      /* lite smalare än telefonens 300px bredd */
+    height: 18px;                      /* lägre/tunnare */
+    background: radial-gradient(ellipse at center,
+                rgba(0,0,0,0.15) 0%,
+                rgba(0,0,0,0) 80%);
+    filter: blur(10px);                /* mjukare */
+    z-index:1;
+    pointer-events:none;
+  }
 
   .notch{
     position:absolute; top:6px; left:50%; transform:translateX(-50%);
@@ -181,16 +180,14 @@
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
 
-  // === Auto-höjd: skicka höjd till föräldersidan ===
+  // === Auto-höjd till föräldersidan (Google Sites) ===
   function postSize(){
     const h = document.documentElement.scrollHeight;
     parent.postMessage({ scrollDemoHeight: h }, "*");
   }
   window.addEventListener("load", postSize);
   window.addEventListener("resize", postSize);
-
-  // säkerställ uppdatering med intervall (för embed som stryper resize)
-  setInterval(postSize, 1500);
+  setInterval(postSize, 1500); // säkerställ uppdatering
 })();
 </script>
 </body>
