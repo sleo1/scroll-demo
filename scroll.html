@@ -3,51 +3,59 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300 px – tunn jämn ram, auto + manuell scroll</title>
+<title>Vit mobil 300×(kompakt) – auto + manuell scroll</title>
 <style>
   :root{
-    --phone-w: 300px;      /* fast bredd */
-    --bezel: 10px;         /* jämn ram runt skärmen */
-    --screen-h: 440px;     /* sänkt höjd för kompaktare telefon */
-    --radius-phone: 22px;  /* lite smalare hörn */
+    --phone-w: 300px;       /* fast bredd */
+    --bezel: 6px;           /* uniform smal ram runt om */
+    --screen-h: 480px;      /* synlig höjd – justera vid behov */
+    --radius-phone: 20px;   /* lite tajtare rundning */
     --radius-screen: 16px;
-
-    /* härledda mått */
-    --screen-w: calc(var(--phone-w) - var(--bezel)*2);
-    --phone-h: calc(var(--screen-h) + var(--bezel)*2);
   }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body{
-    margin:0; background:transparent;
+    margin:0;
+    background:transparent;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    display:grid; place-items:center; overflow:hidden;
+    display:grid; place-items:center;
+    overflow:hidden; /* inga inre scrollbars i iframen */
   }
 
   .phone{
     position:relative;
-    width:var(--phone-w); height:var(--phone-h);
-    background:#fff; border-radius:var(--radius-phone);
-    box-shadow: inset 0 0 0 1px #e0e0e0;
+    width:var(--phone-w);
+    height: calc(var(--screen-h) + (var(--bezel) * 2)); /* kompakt totalhöjd */
+    background:#fff;
+    border-radius: var(--radius-phone);
+    box-shadow: inset 0 0 0 1px #e0e0e0; /* tunn, neutral kant */
     overflow:hidden;
   }
 
+  /* Skärmen – lika avstånd på alla kanter */
   .screen{
     position:absolute;
-    top: var(--bezel); left: var(--bezel);
-    width: var(--screen-w); height: var(--screen-h);
+    top: var(--bezel);
+    left: var(--bezel);
+    width: calc(var(--phone-w) - (var(--bezel) * 2));
+    height: var(--screen-h);
     border-radius: var(--radius-screen);
-    overflow:hidden; background:#fff;
-    /* diskret inre skugga, kan tas bort om du vill helt platt look */
+    overflow:hidden;
+    background:#fff;
     box-shadow: inset 0 0 14px rgba(0,0,0,.08);
-    touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
+    touch-action:none;       /* vi hanterar gester själva */
+    cursor: grab;
+    user-select:none; -webkit-user-select:none;
   }
   .screen.dragging{ cursor:grabbing; }
 
   .longshot{
-    width:100%; height:auto; display:block;
-    transform: translateY(0); opacity:1;
+    width:100%;
+    height:auto;
+    display:block;
+    transform: translateY(0);
+    opacity: 1;
     will-change: transform, opacity;
     user-select:none; -webkit-user-drag:none; pointer-events:none;
   }
@@ -64,66 +72,80 @@
 
 <script>
 (() => {
-  // Autoscroll: stegvis, 4 s/steg, paus/återuppta efter manuell interaktion
-  const CONFIG = { STEP_DURATION:4000, STEP_GAP:200, TOP_PAUSE:600, BOTTOM_PAUSE:600,
-                   FADE_OUT_DUR:500, FADE_IN_DUR:350, RESUME_DELAY:1500, WHEEL_SPEED:1.0 };
+  // === Konfig (auto-scroll i steg) ===
+  const CONFIG = {
+    STEP_DURATION: 4000,
+    STEP_GAP:      200,
+    TOP_PAUSE:     600,
+    BOTTOM_PAUSE:  600,
+    FADE_OUT_DUR:  500,
+    FADE_IN_DUR:   350,
+    RESUME_DELAY:  1500,  // paus tills auto återupptas efter manuell interaktion
+    WHEEL_SPEED:   1.0
+  };
 
-  const img=document.getElementById('longshot');
-  const screen=document.getElementById('screen');
+  const img    = document.getElementById('longshot');
+  const screen = document.getElementById('screen');
 
-  let running=false, pausedByUser=false, resumeTimer=null;
+  let running = false;
+  let pausedByUser = false;
+  let resumeTimer = null;
 
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-  const setY=y=>{ img.style.transform=`translateY(${-Math.max(0,Math.round(y))}px)`; };
-  const transition=(props,dur,easing='ease')=>{ img.style.transition=props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
+  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
+  const transition=(props,dur,easing='ease')=>{ img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
   const clearTransition=()=>{ img.style.transition='none'; };
 
   function deltaPx(){
-    if(!img.naturalWidth||!img.naturalHeight) return 0;
-    const scale=screen.clientWidth/img.naturalWidth;
-    return Math.max(0, img.naturalHeight*scale - screen.clientHeight);
+    if(!img.naturalWidth || !img.naturalHeight) return 0;
+    const scale = screen.clientWidth / img.naturalWidth;
+    const imgH  = img.naturalHeight * scale;
+    return Math.max(0, imgH - screen.clientHeight);
   }
   function currentY(){
-    const m=/translateY\((-?\d+)px\)/.exec(img.style.transform);
-    return m?Math.max(0,-parseInt(m[1],10)):0;
+    const m = /translateY\((-?\d+)px\)/.exec(img.style.transform);
+    return m ? Math.max(0, -parseInt(m[1],10)) : 0;
   }
-  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
-  function tempPause(){ // paus vid manuell interaktion
-    pausedByUser=true; clearTransition();
+  function clamp(v,a,b){ return Math.min(b, Math.max(a,v)); }
+
+  function tempPauseAuto(){
+    pausedByUser = true;
+    clearTransition();
     if(resumeTimer) clearTimeout(resumeTimer);
-    resumeTimer=setTimeout(()=>{ pausedByUser=false; }, CONFIG.RESUME_DELAY);
+    resumeTimer = setTimeout(()=>{ pausedByUser = false; }, CONFIG.RESUME_DELAY);
   }
 
-  async function animateStep(fromY,toY){
+  async function animateStep(fromY, toY){
     clearTransition(); setY(fromY); await sleep(20);
-    transition(['transform'],CONFIG.STEP_DURATION,'ease-in-out');
+    transition(['transform'], CONFIG.STEP_DURATION, 'ease-in-out');
     setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postSize();
   }
   async function fadeReset(){
     clearTransition(); await sleep(20);
-    transition(['opacity'],CONFIG.FADE_OUT_DUR,'ease'); img.style.opacity='0';
-    await sleep(CONFIG.FADE_OUT_DUR); clearTransition(); setY(0); await sleep(20);
-    transition(['opacity'],CONFIG.FADE_IN_DUR,'ease'); img.style.opacity='1';
+    transition(['opacity'], CONFIG.FADE_OUT_DUR, 'ease'); img.style.opacity = '0';
+    await sleep(CONFIG.FADE_OUT_DUR);
+    clearTransition(); setY(0); await sleep(20);
+    transition(['opacity'], CONFIG.FADE_IN_DUR, 'ease'); img.style.opacity = '1';
     await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize();
   }
 
-  async function loop(){ if(running) return; running=true;
+  async function loop(){
+    if(running) return; running = true;
     while(running){
-      const d=deltaPx();
-      if(d<=0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+      const d = deltaPx();
+      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
 
-      // vänta ut manuell paus
-      while(pausedByUser){ await sleep(100); }
+      while(pausedByUser) { await sleep(120); }
 
-      const stepSize=Math.max(120, screen.clientHeight*0.85);
-      let pos=currentY();
+      const stepSize = Math.max(120, screen.clientHeight * 0.85);
+      let pos = currentY();
 
       await sleep(CONFIG.TOP_PAUSE);
-      while(pos<d-1){
+      while(pos < d - 1){
         if(pausedByUser) break;
-        const next=Math.min(d, pos+stepSize);
-        await animateStep(pos,next);
-        pos=next;
+        const next = Math.min(d, pos + stepSize);
+        await animateStep(pos, next);
+        pos = next;
         await sleep(CONFIG.STEP_GAP);
       }
       if(pausedByUser) continue;
@@ -133,61 +155,83 @@
     }
   }
 
-  // Manuell kontroll: touch, pointer, mouse, wheel, tangentbord
-  (function(){
+  // — Manuell kontroll: touch, pointer, mouse, wheel, tangentbord —
+  (function enableManual(){
     let dragging=false, startY=0, startPos=0;
-    function startDrag(clientY,id){ tempPause(); dragging=true; screen.classList.add('dragging');
-      startY=clientY; startPos=currentY(); try{ if(id!=null&&screen.setPointerCapture) screen.setPointerCapture(id);}catch(e){} }
-    function moveDrag(clientY){ if(!dragging) return;
-      const d=deltaPx(), ny=clamp(startPos-(clientY-startY), 0, d); clearTransition(); setY(ny); }
-    function endDrag(){ dragging=false; screen.classList.remove('dragging');
-      try{ if(screen.releasePointerCapture) screen.releasePointerCapture(); }catch(e){} }
+
+    function startDrag(clientY, pid){
+      tempPauseAuto();
+      dragging = true;
+      screen.classList.add('dragging');
+      startY = clientY; startPos = currentY();
+      try{ if(pid!=null && screen.setPointerCapture) screen.setPointerCapture(pid); }catch(e){}
+    }
+    function moveDrag(clientY){
+      if(!dragging) return;
+      const d = deltaPx(), ny = clamp(startPos - (clientY - startY), 0, d);
+      clearTransition(); setY(ny);
+    }
+    function endDrag(){
+      dragging=false; screen.classList.remove('dragging');
+      try{ if(screen.releasePointerCapture) screen.releasePointerCapture(); }catch(e){}
+    }
 
     // Touch
-    screen.addEventListener('touchstart',e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY,null); } e.preventDefault(); }, {passive:false});
-    screen.addEventListener('touchmove', e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
-    screen.addEventListener('touchend', endDrag);
+    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY,null); } e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchend',   endDrag);
 
-    // Pointer / Mouse
-    screen.addEventListener('pointerdown',e=>{ startDrag(e.clientY,e.pointerId); e.preventDefault(); });
-    window.addEventListener('pointermove',e=>{ if(dragging) moveDrag(e.clientY); });
-    window.addEventListener('pointerup', endDrag);
+    // Pointer
+    screen.addEventListener('pointerdown', e=>{ startDrag(e.clientY, e.pointerId); e.preventDefault(); });
+    window.addEventListener('pointermove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('pointerup',   endDrag);
 
-    screen.addEventListener('mousedown',e=>{ if(e.button!==0) return; startDrag(e.clientY,null); e.preventDefault(); });
-    window.addEventListener('mousemove',e=>{ if(dragging) moveDrag(e.clientY); });
-    window.addEventListener('mouseup', endDrag);
+    // Mouse fallback
+    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY,null); e.preventDefault(); });
+    window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('mouseup',   endDrag);
 
-    // Hjul
-    screen.addEventListener('wheel',e=>{
-      tempPause();
-      const d=deltaPx(), y=currentY(), ny=clamp(y + e.deltaY*CONFIG.WHEEL_SPEED, 0, d);
-      clearTransition(); setY(ny); e.preventDefault();
+    // Wheel
+    screen.addEventListener('wheel', e=>{
+      tempPauseAuto();
+      const d = deltaPx(), y = currentY();
+      const ny = clamp(y + e.deltaY * CONFIG.WHEEL_SPEED, 0, d);
+      clearTransition(); setY(ny);
+      e.preventDefault();
     }, {passive:false});
 
-    // Tangentbord
-    screen.addEventListener('keydown',e=>{
-      const d=deltaPx(); if(!d) return;
-      const y=currentY(), page=screen.clientHeight*0.85;
-      if(e.key==='ArrowDown'||e.key==='PageDown'){ tempPause(); setY(Math.min(d, y + (e.key==='PageDown'?page:60))); e.preventDefault(); }
-      if(e.key==='ArrowUp'  ||e.key==='PageUp'){   tempPause(); setY(Math.max(0, y - (e.key==='PageUp'?page:60))); e.preventDefault(); }
-      if(e.key==='Home'){ tempPause(); setY(0); e.preventDefault(); }
-      if(e.key==='End'){  tempPause(); setY(d); e.preventDefault(); }
+    // Keyboard
+    screen.addEventListener('keydown', e=>{
+      const d = deltaPx(); if(!d) return;
+      const y = currentY(); const page = screen.clientHeight * 0.85;
+      if (e.key==='ArrowDown' || e.key==='PageDown'){ tempPauseAuto(); setY(Math.min(d, y + (e.key==='PageDown'?page:60))); e.preventDefault(); }
+      if (e.key==='ArrowUp'   || e.key==='PageUp')  { tempPauseAuto(); setY(Math.max(0, y - (e.key==='PageUp'?page:60))); e.preventDefault(); }
+      if (e.key==='Home'){ tempPauseAuto(); setY(0); e.preventDefault(); }
+      if (e.key==='End') { tempPauseAuto(); setY(d); e.preventDefault(); }
     });
   })();
 
-  async function ready(){ try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); postSize(); loop(); }
-  if(img.complete&&img.naturalWidth) ready(); else img.addEventListener('load', ready, {once:true});
+  async function ready(){
+    try{ if(img.decode) await img.decode(); }catch(e){}
+    img.style.opacity='1'; setY(0); postSize(); loop();
+  }
+  if (img.complete && img.naturalWidth) ready();
+  else img.addEventListener('load', ready, { once:true });
 
-  // Auto-höjd till Google Sites
+  // — Auto-höjd till Google Sites —
   function postSize(){
-    const h=document.documentElement.scrollHeight;
+    const h = document.documentElement.scrollHeight;
     parent.postMessage({ scrollDemoHeight: h }, "*");
   }
   window.addEventListener("load", postSize);
   window.addEventListener("resize", postSize);
-  if('ResizeObserver' in window){ new ResizeObserver(()=>postSize()).observe(document.documentElement); new ResizeObserver(()=>postSize()).observe(screen); }
-  else { setInterval(postSize, 1500); }
+  if ('ResizeObserver' in window) {
+    const ro = new ResizeObserver(()=>postSize());
+    ro.observe(document.documentElement);
+    ro.observe(screen);
+  } else {
+    setInterval(postSize, 1500);
+  }
 })();
 </script>
 </body>
