@@ -9,7 +9,7 @@
     --phone-w: 420px;
     --phone-h: 880px;
     --screen-w: 390px;
-    --screen-h: 600px; /* Sänkt så bilden blir längre än viewporten */
+    --screen-h: 520px; /* Sänkt för att G A R A N T E R A delta och tydlig scroll */
     --radius-phone: 60px;
     --radius-screen: 40px;
     --bg: #eceff1;
@@ -31,7 +31,7 @@
     box-shadow:0 24px 60px var(--chrome-shadow), inset 0 0 0 2px #222;
     overflow:hidden;
   }
-  /* Sidobevels för mer realism */
+  /* Sidobevels */
   .phone::before, .phone::after{
     content:""; position:absolute; top:0; bottom:0; width:6px; pointer-events:none;
     background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.35));
@@ -39,7 +39,7 @@
   .phone::before{ left:0; }
   .phone::after{ right:0; }
 
-  /* “Knappar” på sidan */
+  /* “Knappar” */
   .btn{
     position:absolute; left:-2px; width:6px; border-radius:3px; background:#2a2a2a;
     box-shadow: inset 0 0 4px rgba(0,0,0,.6);
@@ -76,10 +76,10 @@
   .longshot{
     width:100%; height:auto; display:block; transform:translateY(0);
     will-change: transform;
-    /* animation sätts i JS för att anpassa tempo/pauser efter bildhöjd */
+    /* animation sätts i JS */
   }
 
-  /* Responsiv nedskalning om sidan bäddas in smalt */
+  /* Skala ner om inbäddningen är smal */
   .scale-wrap { transform-origin: top left; }
   @media (max-width: 460px){ .scale-wrap{ transform: scale(0.9); } }
   @media (max-width: 420px){ .scale-wrap{ transform: scale(0.8); } }
