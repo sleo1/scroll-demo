@@ -26,7 +26,7 @@
     top: 40px;
     left: 15px;
     width: 390px;
-    height: 800px;
+    height: 700px; /* tidigare 800px */
     border-radius: 40px;
     overflow: hidden;
     background: #fff;
@@ -70,16 +70,24 @@
 <script>
   const imgEl = document.getElementById('longshot');
   const screen = document.querySelector('.screen');
-  function recalc() {
+
+  function setDelta() {
     const scale = screen.clientWidth / imgEl.naturalWidth;
     const visHeight = screen.clientHeight;
     const imgHeight = imgEl.naturalHeight * scale;
     const delta = Math.max(0, imgHeight - visHeight);
     document.documentElement.style.setProperty('--deltaY', delta + 'px');
+    console.log('scale=', scale, 'imgHeight=', imgHeight, 'visHeight=', visHeight, 'delta=', delta);
   }
-  imgEl.addEventListener('load', recalc);
-  if (imgEl.complete) recalc();
-  window.addEventListener('resize', recalc);
+
+  async function recalcWhenReady() {
+    try { if (imgEl.decode) await imgEl.decode(); } catch(e) {}
+    if (imgEl.naturalWidth && imgEl.naturalHeight) setDelta();
+    else imgEl.addEventListener('load', setDelta, { once: true });
+  }
+
+  window.addEventListener('resize', setDelta);
+  recalcWhenReady();
 </script>
 </body>
 </html>
