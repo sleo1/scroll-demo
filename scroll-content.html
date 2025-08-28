@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scroll – content only</title>
+<style>
+  html,body{margin:0;height:100%;background:transparent;overscroll-behavior:none}
+  ::-webkit-scrollbar{width:0;height:0}
+  .screen{
+    position:relative;
+    width:100%; height:100%;
+    overflow:hidden; background:#fff;         /* själva skärmen */
+    border-radius:18px;                       /* justera rundning vid behov */
+    touch-action:none; user-select:none; cursor:grab;
+    box-shadow: inset 0 0 18px rgba(0,0,0,.10);
+  }
+  .screen.dragging{cursor:grabbing}
+  .longshot{width:100%;height:auto;display:block;transform:translateY(0);opacity:1;pointer-events:none}
+</style>
+</head>
+<body>
+  <div class="screen" id="screen" tabindex="0" aria-label="Rullbar förhandsvisning">
+    <img id="longshot" class="longshot"
+         src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
+         alt="Förhandsvisning">
+  </div>
+
+<script>
+(() => {
+  const CFG={STEP:4000,GAP:200,TOP:600,BOT:600,FADE_OUT:500,FADE_IN:350,RESUME:1500,WHEEL:1.0};
+  const img=document.getElementById('longshot'), screen=document.getElementById('screen');
+  let running=false, paused=false, t=null;
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const setY=y=>{ img.style.transform=`translateY(${-Math.max(0,Math.round(y))}px)`; };
+  const tr=(p,d,e='ease')=>{ img.style.transition=p.map(x=>`${x} ${d}ms ${e}`).join(', ') };
+  const clr=()=>{ img.style.transition='none' };
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const dpx=()=>!img.naturalWidth?0:Math.max(0,(img.naturalHeight*(screen.clientWidth/img.naturalWidth))-screen.clientHeight);
+  const cur=()=>{ const m=/translateY\((-?\d+)px\)/.exec(img.style.transform); return m?Math.max(0,-parseInt(m[1],10)):0; };
+  function pause(){ paused=true; clr(); if(t)clearTimeout(t); t=setTimeout(()=>paused=false, CFG.RESUME); }
+  async function step(a,b){ clr(); setY(a); await sleep(20); tr(['transform'],CFG.STEP,'ease-in-out'); setY(b); await sleep(CFG.STEP); clr(); }
+  async function reset(){ clr(); await sleep(20); tr(['opacity'],CFG.FADE_OUT,'ease'); img.style.opacity='0'; await sleep(CFG.FADE_OUT);
+    clr(); setY(0); await sleep(20); tr(['opacity'],CFG.FADE_IN,'ease'); img.style.opacity='1'; await sleep(CFG.FADE_IN); clr(); }
+  async function loop(){ if(running)return; running=true; while(running){ const d=dpx(); if(d<=0){ img.style.opacity='1'; setY(0); await sleep(800); continue; }
+      while(paused) await sleep(120); const stepSize=Math.max(120, screen.clientHeight*0.85); let y=cur();
+      await sleep(CFG.TOP); while(y<d-1){ if(paused)break; const n=Math.min(d,y+stepSize); await step(y,n); y=n; await sleep(CFG.GAP); }
+      if(paused) continue; await sleep(CFG.BOT); await reset(); } }
+  // manuell
+  (function(){
+    let drag=false,sY=0,sP=0;
+    function start(c){ pause(); drag=true; screen.classList.add('dragging'); sY=c; sP=cur(); }
+    function move(c){ if(!drag)return; const d=dpx(),ny=clamp(sP-(c-sY),0,d); clr(); setY(ny); }
+    function end(){ drag=false; screen.classList.remove('dragging'); }
+    screen.addEventListener('touchstart',e=>{ if(e.touches.length) start(e.touches[0].clientY); e.preventDefault(); },{passive:false});
+    screen.addEventListener('touchmove', e=>{ if(e.touches.length) move(e.touches[0].clientY); e.preventDefault(); },{passive:false});
+    screen.addEventListener('touchend', end);
+    screen.addEventListener('pointerdown',e=>{ start(e.clientY); e.preventDefault(); });
+    window.addEventListener('pointermove',e=>{ move(e.clientY); });
+    window.addEventListener('pointerup',end);
+    screen.addEventListener('mousedown',e=>{ if(e.button!==0)return; start(e.clientY); e.preventDefault(); });
+    window.addEventListener('mousemove',e=>{ move(e.clientY); });
+    window.addEventListener('mouseup',end);
+    screen.addEventListener('wheel',e=>{ pause(); const d=dpx(),y=cur(); const ny=clamp(y+e.deltaY*CFG.WHEEL,0,d); clr(); setY(ny); e.preventDefault(); },{passive:false});
+    screen.addEventListener('keydown',e=>{ const d=dpx(); if(!d)return; const y=cur(),pg=screen.clientHeight*0.85;
+      if(e.key==='ArrowDown'||e.key==='PageDown'){ pause(); setY(Math.min(d,y+(e.key==='PageDown'?pg:60))); e.preventDefault(); }
+      if(e.key==='ArrowUp'||e.key==='PageUp'){   pause(); setY(Math.max(0,y-(e.key==='PageUp'?pg:60))); e.preventDefault(); }
+      if(e.key==='Home'){ pause(); setY(0); e.preventDefault(); }
+      if(e.key==='End'){  pause(); setY(d); e.preventDefault(); }
+    });
+  })();
+  async function ready(){ try{ if(img.decode) await img.decode(); }catch{} img.style.opacity='1'; setY(0); loop(); }
+  if(img.complete&&img.naturalWidth) ready(); else img.addEventListener('load',ready,{once:true});
+})();
+</script>
+</body>
+</html>
