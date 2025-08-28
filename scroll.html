@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – auto + manuell scroll, ingen skugga</title>
+<title>Vit mobil 300×534 – auto + manuell scroll (desktopfix)</title>
 <style>
   :root{
     --phone-w: 300px;
@@ -14,67 +14,42 @@
     --radius-phone: 28px;
     --radius-screen: 20px;
   }
-
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body{
     margin:0;
-    background:transparent; /* alltid transparent */
+    background:transparent;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     display:grid; place-items:center;
-    overflow: hidden; /* inga inre scrollbars i iframen */
+    overflow: hidden; /* undvik inre scrollbars i iframen */
   }
-
-  .stage{
-    display:grid;
-    place-items:center;
-    padding-bottom: 0; /* ingen skugga -> inget extra utrymme */
-    position: relative;
-  }
-
+  .stage{ display:grid; place-items:center; padding-bottom:0; position:relative; }
   .phone{
-    position:relative;
-    width:var(--phone-w);
-    height:var(--phone-h);
-    background:#fff;
-    border-radius: var(--radius-phone);
-    box-shadow: inset 0 0 0 1px #e0e0e0;
-    overflow:hidden;
+    position:relative; width:var(--phone-w); height:var(--phone-h);
+    background:#fff; border-radius:var(--radius-phone);
+    box-shadow: inset 0 0 0 1px #e0e0e0; overflow:hidden;
   }
-
   .notch{
     position:absolute; top:6px; left:50%; transform:translateX(-50%);
-    width:90px; height:14px; background:#eee;
-    border-radius:0 0 8px 8px;
-    box-shadow: inset 0 0 2px rgba(0,0,0,.12);
-    z-index:2;
+    width:90px; height:14px; background:#eee; border-radius:0 0 8px 8px;
+    box-shadow: inset 0 0 2px rgba(0,0,0,.12); z-index:2;
   }
-
   .screen{
-    position:absolute;
-    top: var(--screen-top);
-    left: var(--screen-lr);
-    width: calc(var(--phone-w) - var(--screen-lr) * 2);
-    height: var(--screen-h);
-    border-radius: var(--radius-screen);
-    overflow:hidden;
-    background:#fff;
+    position:absolute; top:var(--screen-top); left:var(--screen-lr);
+    width:calc(var(--phone-w) - var(--screen-lr)*2); height:var(--screen-h);
+    border-radius:var(--radius-screen); overflow:hidden; background:#fff;
     box-shadow: inset 0 0 18px rgba(0,0,0,.10);
-    touch-action: none;         /* vi hanterar touch själv */
+    touch-action: none;           /* vi hanterar gester själva */
     cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
   }
   .screen.dragging{ cursor: grabbing; }
-
   .longshot{
-    width:100%;
-    height:auto;
-    display:block;
-    transform: translateY(0);
-    opacity: 1;
+    width:100%; height:auto; display:block;
+    transform: translateY(0); opacity:1;
     will-change: transform, opacity;
-    user-select: none;          /* undvik markering/drag av bilden */
-    -webkit-user-drag: none;
-    pointer-events: none;       /* så drag sker på .screen */
+    user-select: none; -webkit-user-drag: none; pointer-events:none;
   }
 </style>
 </head>
@@ -93,23 +68,17 @@
 <script>
 (() => {
   // === Auto-scroll parametrar (4 s per steg) ===
-  const STEP_DURATION = 4000;
-  const STEP_GAP      = 200;
-  const TOP_PAUSE     = 600;
-  const BOTTOM_PAUSE  = 600;
-  const FADE_OUT_DUR  = 500;
-  const FADE_IN_DUR   = 350;
+  const STEP_DURATION = 4000, STEP_GAP = 200, TOP_PAUSE = 600, BOTTOM_PAUSE = 600;
+  const FADE_OUT_DUR = 500, FADE_IN_DUR = 350;
 
-  // === Manuell scroll (paus auto vid interaktion) ===
-  const RESUME_DELAY  = 1500; // ms inaktivitet innan auto återupptas
-  const WHEEL_SPEED   = 1.0;  // multiplikator för mushjul
+  // === Manuell scroll ===
+  const RESUME_DELAY = 1500;    // ms inaktivitet innan auto återupptas
+  const WHEEL_SPEED  = 1.0;     // skalfaktor mushjul
 
-  const img    = document.getElementById('longshot');
+  const img = document.getElementById('longshot');
   const screen = document.getElementById('screen');
 
-  let running = false;
-  let pausedByUser = false;
-  let resumeTimer = null;
+  let running = false, pausedByUser = false, resumeTimer = null;
 
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
@@ -122,114 +91,106 @@
     const imgH  = img.naturalHeight * scale;
     return Math.max(0, imgH - screen.clientHeight);
   }
-
   function currentY(){
     const m = /translateY\((-?\d+)px\)/.exec(img.style.transform);
     return m ? Math.max(0, -parseInt(m[1],10)) : 0;
   }
-
-  function clamp(val, min, max){ return Math.min(max, Math.max(min, val)); }
+  function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
 
   function pauseAuto(){
     pausedByUser = true;
     clearTransition();
-    if(resumeTimer){ clearTimeout(resumeTimer); }
+    if(resumeTimer) clearTimeout(resumeTimer);
     resumeTimer = setTimeout(()=>{ pausedByUser = false; }, RESUME_DELAY);
   }
 
   async function animateStep(fromY, toY){
-    if(pausedByUser) return; // avbryt auto om användaren interagerat
-    clearTransition(); setY(fromY);
-    await sleep(20);
+    if(pausedByUser) return;
+    clearTransition(); setY(fromY); await sleep(20);
     transition(['transform'], STEP_DURATION, 'ease-in-out');
-    setY(toY);
-    await sleep(STEP_DURATION);
-    clearTransition();
-    postSize();
+    setY(toY); await sleep(STEP_DURATION); clearTransition(); postSize();
   }
-
   async function fadeReset(){
     if(pausedByUser) return;
     clearTransition(); await sleep(20);
     transition(['opacity'], FADE_OUT_DUR, 'ease'); img.style.opacity = '0';
     await sleep(FADE_OUT_DUR);
-    clearTransition(); setY(0);
-    await sleep(20);
+    clearTransition(); setY(0); await sleep(20);
     transition(['opacity'], FADE_IN_DUR, 'ease'); img.style.opacity = '1';
-    await sleep(FADE_IN_DUR);
-    clearTransition();
-    postSize();
+    await sleep(FADE_IN_DUR); clearTransition(); postSize();
   }
 
   async function loop(){
     if(running) return; running = true;
     while(running){
-      const delta = deltaPx();
-      if(delta <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+      const d = deltaPx();
+      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
 
-      // vänta tills ev. manuell paus släpper
-      while(pausedByUser) { await sleep(100); }
+      while(pausedByUser) { await sleep(100); } // vänta tills användaren är klar
 
       const stepSize = Math.max(120, screen.clientHeight * 0.85);
       let pos = currentY();
 
       await sleep(TOP_PAUSE);
-      while(pos < delta - 1){
+      while(pos < d - 1){
         if(pausedByUser) break;
-        const next = Math.min(delta, pos + stepSize);
+        const next = Math.min(d, pos + stepSize);
         await animateStep(pos, next);
         pos = next;
         await sleep(STEP_GAP);
       }
-      if(pausedByUser) continue; // låt manuell kontroll ta över
+      if(pausedByUser) continue;
 
       await sleep(BOTTOM_PAUSE);
       await fadeReset();
     }
   }
 
-  // === Manuell kontroll: touch/drag och mushjul ===
+  // === Manuell kontroll: touch, pointer, mouse (fallback), wheel ===
   (function enableManual(){
-    let dragging = false;
-    let startY = 0;
-    let startPos = 0;
+    let dragging = false, startY = 0, startPos = 0;
 
-    function startDrag(clientY){
+    function startDrag(clientY, pointerId){
       pauseAuto();
       dragging = true;
       screen.classList.add('dragging');
       startY = clientY;
       startPos = currentY();
+      // Pointer capture om möjligt (stabilt drag även utanför elementet)
+      try { if(pointerId != null && screen.setPointerCapture) screen.setPointerCapture(pointerId); } catch(e){}
     }
     function moveDrag(clientY){
       if(!dragging) return;
-      const delta = deltaPx();
-      const dy = clientY - startY;
-      const ny = clamp(startPos - dy, 0, delta);
-      clearTransition();
-      setY(ny);
+      const d = deltaPx(), dy = clientY - startY;
+      const ny = clamp(startPos - dy, 0, d);
+      clearTransition(); setY(ny);
     }
     function endDrag(){
       dragging = false;
       screen.classList.remove('dragging');
+      try { if(screen.releasePointerCapture) screen.releasePointerCapture(); } catch(e){}
     }
 
     // Touch
-    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY, null); } e.preventDefault(); }, {passive:false});
     screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
-    screen.addEventListener('touchend',   e=>{ endDrag(); });
+    screen.addEventListener('touchend',   endDrag);
 
-    // Mouse / Pointer
-    screen.addEventListener('pointerdown', e=>{ startDrag(e.clientY); e.preventDefault(); });
-    window.addEventListener('pointermove', e=>{ moveDrag(e.clientY); });
-    window.addEventListener('pointerup',   e=>{ endDrag(); });
+    // Pointer (Edge/Chrome/Firefox/Safari nyare)
+    screen.addEventListener('pointerdown', e=>{ startDrag(e.clientY, e.pointerId); e.preventDefault(); });
+    window.addEventListener('pointermove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('pointerup',   endDrag);
+
+    // Mouse fallback (för miljöer utan pointer events)
+    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY, null); e.preventDefault(); });
+    window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('mouseup',   endDrag);
 
     // Mouse wheel
     screen.addEventListener('wheel', e=>{
       pauseAuto();
-      const delta = deltaPx();
-      const y = currentY();
-      const ny = clamp(y + e.deltaY * WHEEL_SPEED, 0, delta);
+      const d = deltaPx(), y = currentY();
+      const ny = clamp(y + e.deltaY * WHEEL_SPEED, 0, d);
       clearTransition(); setY(ny);
       e.preventDefault();
     }, {passive:false});
@@ -237,11 +198,8 @@
 
   async function ready(){
     try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0);
-    postSize();
-    loop();
+    img.style.opacity='1'; setY(0); postSize(); loop();
   }
-
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
 
