@@ -3,26 +3,30 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – auto+manuell scroll, smal bottenram</title>
+<title>Vit mobil 300×530 – iPhone-fix (ingen scrollbar)</title>
 <style>
   :root{
     --phone-w: 300px;
-    --phone-h: 534px;
-    --screen-lr: 8px;      /* vänster/höger ram */
-    --screen-top: 24px;    /* topp-ram */
-    --screen-bottom: 8px;  /* botten-ram = lika smal som vänster/höger */
+    --phone-h: 530px;   /* sänkt 4 px för att undvika iOS overflow */
+    --screen-lr: 8px;   /* vänster/höger ram */
+    --screen-top: 24px; /* topp-ram */
+    --screen-bottom: 8px; /* botten-ram = lika smal som vänster/höger */
     --radius-phone: 28px;
     --radius-screen: 20px;
   }
+
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  html, body { height: 100%; overscroll-behavior: none; } /* iOS “rubber band” av */
   body{
     margin:0;
     background:transparent;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     display:grid; place-items:center;
-    overflow:hidden; /* undvik inre scrollbars i iframen */
+    overflow:hidden; /* inga inre scrollbars i iframen */
   }
+  /* Göm ev. WebKit overlay-scrollbars */
+  ::-webkit-scrollbar { width:0; height:0; }
+
   .stage{ display:grid; place-items:center; position:relative; }
 
   .phone{
@@ -216,7 +220,7 @@
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
 
-  // Auto-höjd -> Google Sites
+  // Auto-höjd -> Google Sites (om du använder varianten med message-lyssnare)
   function postSize(){
     const h=document.documentElement.scrollHeight;
     parent.postMessage({ scrollDemoHeight: h }, "*");
