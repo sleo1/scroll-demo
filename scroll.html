@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – auto + manuell scroll, diskret pausknapp</title>
+<title>Vit mobil 300×534 – stabil paus/play, rund knapp</title>
 <style>
   :root{
     --phone-w: 300px;
@@ -19,7 +19,7 @@
   body{
     margin:0;
     background:transparent;
-    font-family: system-ui, sans-serif;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     display:grid; place-items:center;
     overflow:hidden;
   }
@@ -47,22 +47,25 @@
   .longshot{
     width:100%; height:auto; display:block;
     transform:translateY(0); opacity:1;
+    will-change: transform, opacity;
     user-select:none; -webkit-user-drag:none; pointer-events:none;
   }
 
-  /* Paus/Spela-upp-knapp: dold tills hover/fokus */
+  /* Rund paus/play-knapp – 50px från .screen höger/underkant */
   #toggleAuto{
-    position:absolute; right:8px; bottom:8px; z-index:3;
-    font:inherit; padding:6px 10px; border-radius:999px;
-    border:1px solid #ddd; background:#fff; color:#333;
-    box-shadow:0 2px 8px rgba(0,0,0,.1); cursor:pointer;
-    opacity:0; transition:opacity .25s;
+    position:absolute; right:50px; bottom:50px; z-index:3;
+    width:44px; height:44px; border-radius:999px;
+    display:grid; place-items:center;
+    border:1px solid #d8d8d8; background:#ffffffcc; /* lätt transparens */
+    backdrop-filter: blur(4px);
+    box-shadow:0 6px 16px rgba(0,0,0,.16);
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
   }
-  .phone:hover #toggleAuto,
-  .phone:focus-within #toggleAuto{
-    opacity:1;
-  }
+  #toggleAuto:hover{ transform: translateY(-1px); box-shadow:0 8px 20px rgba(0,0,0,.2); }
+  #toggleAuto:active{ transform: translateY(0); box-shadow:0 4px 12px rgba(0,0,0,.16); }
   #toggleAuto:focus{ outline:2px solid #4a90e2; outline-offset:2px; }
+  #toggleAuto svg{ width:18px; height:18px; display:block; }
 </style>
 </head>
 <body>
@@ -73,103 +76,224 @@
         <img id="longshot" class="longshot"
              src="https://sleo1.github.io/scroll-demo/startsida2024-2.jpg"
              alt="Förhandsvisning av lång sida">
+
+        <!-- Rund paus/play-knapp inne i .screen (50px från höger/underkant) -->
+        <button id="toggleAuto" aria-pressed="false" aria-label="Pausa autoscroll">
+          <!-- Pause ikon (default) -->
+          <svg id="icon-pause" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="6" y="4" width="4" height="16" rx="1.2" fill="#333"/>
+            <rect x="14" y="4" width="4" height="16" rx="1.2" fill="#333"/>
+          </svg>
+          <!-- Play ikon (dold initialt) -->
+          <svg id="icon-play" viewBox="0 0 24 24" fill="none" style="display:none" aria-hidden="true">
+            <path d="M8 5v14l11-7-11-7z" fill="#333"/>
+          </svg>
+        </button>
       </div>
-      <button id="toggleAuto" aria-pressed="false" aria-label="Pausa autoscroll">⏸</button>
     </div>
   </div>
 
 <script>
 (() => {
-  const CONFIG = { STEP_DURATION:4000, STEP_GAP:200, TOP_PAUSE:600, BOTTOM_PAUSE:600,
-                   FADE_OUT_DUR:500, FADE_IN_DUR:350, RESUME_DELAY:1500, WHEEL_SPEED:1.0 };
+  // ========================
+  // CONFIG
+  // ========================
+  const CONFIG = {
+    STEP_DURATION: 4000,   // ms per autosteg
+    STEP_GAP:      200,    // ms mellan steg
+    TOP_PAUSE:     600,    // ms i toppen
+    BOTTOM_PAUSE:  600,    // ms i botten
+    FADE_OUT_DUR:  500,    // ms fade-out före reset
+    FADE_IN_DUR:   350,    // ms fade-in efter reset
+    RESUME_DELAY:  1500,   // ms inaktivitet efter manuell interaktion innan auto får fortsätta
+    WHEEL_SPEED:   1.0     // skala mushjul
+  };
 
-  const img=document.getElementById('longshot');
-  const screen=document.getElementById('screen');
-  const btn=document.getElementById('toggleAuto');
+  const img    = document.getElementById('longshot');
+  const screen = document.getElementById('screen');
+  const btn    = document.getElementById('toggleAuto');
+  const iconPause = document.getElementById('icon-pause');
+  const iconPlay  = document.getElementById('icon-play');
 
-  let running=false, pausedByUser=false, resumeTimer=null;
+  // Två separata tillstånd:
+  // - autoEnabled: styrs av knappen (permanent på/av tills användaren ändrar)
+  // - pausedByUser: temporär paus när man drar/scrollar själv; återupptas efter RESUME_DELAY
+  let running = false;
+  let autoEnabled = true;
+  let pausedByUser = false;
+  let resumeTimer = null;
 
-  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){ pausedByUser=true; }
+  // Respektera prefers-reduced-motion (starta med autoscroll av)
+  const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReduced) setAutoEnabled(false);
 
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-  const setY=y=>{ img.style.transform=`translateY(${-Math.max(0,Math.round(y))}px)`; };
-  const transition=(props,dur,easing='ease')=>{ img.style.transition=props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
-  const clearTransition=()=>{ img.style.transition='none'; };
-  const deltaPx=()=>{ if(!img.naturalWidth)return 0;
-    const scale=screen.clientWidth/img.naturalWidth;
-    return Math.max(0,img.naturalHeight*scale-screen.clientHeight); };
-  const currentY=()=>{ const m=/translateY\((-?\d+)px\)/.exec(img.style.transform);
-    return m?Math.max(0,-parseInt(m[1],10)):0; };
-  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
-
-  function pauseAuto(){
-    pausedByUser=true;
-    btn?.setAttribute('aria-pressed','true'); btn&&(btn.textContent='▶');
-    clearTransition(); if(resumeTimer)clearTimeout(resumeTimer);
-    resumeTimer=setTimeout(()=>{ pausedByUser=false; btn?.setAttribute('aria-pressed','false'); btn&&(btn.textContent='⏸'); }, CONFIG.RESUME_DELAY);
+  function setAutoEnabled(on){
+    autoEnabled = on;
+    btn?.setAttribute('aria-pressed', String(!on)); // aria-pressed=true när pausad
+    if (on) {
+      iconPause.style.display = '';
+      iconPlay.style.display  = 'none';
+    } else {
+      iconPause.style.display = 'none';
+      iconPlay.style.display  = '';
+    }
   }
-  btn?.addEventListener('click',()=>{ pausedByUser=!pausedByUser;
-    btn.setAttribute('aria-pressed',String(pausedByUser));
-    btn.textContent=pausedByUser?'▶':'⏸'; });
 
-  async function animateStep(fromY,toY){ if(pausedByUser)return;
+  // Helpers
+  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
+  const transition = (props, dur, easing='ease') => { img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
+  const clearTransition = ()=>{ img.style.transition = 'none'; };
+
+  function deltaPx(){
+    if(!img.naturalWidth || !img.naturalHeight) return 0;
+    const scale = screen.clientWidth / img.naturalWidth;
+    const imgH  = img.naturalHeight * scale;
+    return Math.max(0, imgH - screen.clientHeight);
+  }
+  function currentY(){
+    const m = /translateY\((-?\d+)px\)/.exec(img.style.transform);
+    return m ? Math.max(0, -parseInt(m[1],10)) : 0;
+  }
+  function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
+
+  function tempPauseAuto(){
+    // Anropas vid manuell interaktion: pausa autoloopen tillfälligt
+    pausedByUser = true;
+    clearTransition();
+    if(resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(()=>{ pausedByUser = false; }, CONFIG.RESUME_DELAY);
+  }
+
+  // Knapp: toggla autoEnabled robust
+  btn?.addEventListener('click', ()=>{
+    setAutoEnabled(!autoEnabled);
+  });
+
+  async function animateStep(fromY, toY){
     clearTransition(); setY(fromY); await sleep(20);
-    transition(['transform'],CONFIG.STEP_DURATION,'ease-in-out');
-    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postSize(); }
-  async function fadeReset(){ if(pausedByUser)return;
+    transition(['transform'], CONFIG.STEP_DURATION, 'ease-in-out');
+    setY(toY); await sleep(CONFIG.STEP_DURATION); clearTransition(); postSize();
+  }
+  async function fadeReset(){
     clearTransition(); await sleep(20);
-    transition(['opacity'],CONFIG.FADE_OUT_DUR,'ease'); img.style.opacity='0';
-    await sleep(CONFIG.FADE_OUT_DUR); clearTransition(); setY(0); await sleep(20);
-    transition(['opacity'],CONFIG.FADE_IN_DUR,'ease'); img.style.opacity='1';
-    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize(); }
+    transition(['opacity'], CONFIG.FADE_OUT_DUR, 'ease'); img.style.opacity = '0';
+    await sleep(CONFIG.FADE_OUT_DUR);
+    clearTransition(); setY(0); await sleep(20);
+    transition(['opacity'], CONFIG.FADE_IN_DUR, 'ease'); img.style.opacity = '1';
+    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize();
+  }
 
-  async function loop(){ if(running)return; running=true;
-    while(running){ const d=deltaPx();
-      if(d<=0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
-      while(pausedByUser){ await sleep(100); }
-      const stepSize=Math.max(120,screen.clientHeight*0.85);
-      let pos=currentY(); await sleep(CONFIG.TOP_PAUSE);
-      while(pos<d-1){ if(pausedByUser)break;
-        const next=Math.min(d,pos+stepSize);
-        await animateStep(pos,next); pos=next; await sleep(CONFIG.STEP_GAP);}
-      if(pausedByUser)continue; await sleep(CONFIG.BOTTOM_PAUSE); await fadeReset(); } }
+  async function loop(){
+    if(running) return; running = true;
+    while(running){
+      const d = deltaPx();
+      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
 
-  // Manuell kontroll (touch, pointer, mouse, wheel, tangentbord)
-  (function(){
-    let dragging=false,startY=0,startPos=0;
-    function startDrag(clientY,id){ pauseAuto(); dragging=true; screen.classList.add('dragging');
-      startY=clientY; startPos=currentY(); try{ if(id!=null&&screen.setPointerCapture)screen.setPointerCapture(id);}catch(e){} }
-    function moveDrag(clientY){ if(!dragging)return;
-      const d=deltaPx(),ny=clamp(startPos-(clientY-startY),0,d); clearTransition(); setY(ny);}
-    function endDrag(){ dragging=false; screen.classList.remove('dragging'); try{if(screen.releasePointerCapture)screen.releasePointerCapture();}catch(e){} }
-    screen.addEventListener('touchstart',e=>{if(e.touches.length){startDrag(e.touches[0].clientY,null);}e.preventDefault();},{passive:false});
-    screen.addEventListener('touchmove', e=>{if(e.touches.length){moveDrag(e.touches[0].clientY);}e.preventDefault();},{passive:false});
-    screen.addEventListener('touchend', endDrag);
-    screen.addEventListener('pointerdown',e=>{startDrag(e.clientY,e.pointerId);e.preventDefault();});
-    window.addEventListener('pointermove',e=>{if(dragging)moveDrag(e.clientY);});
-    window.addEventListener('pointerup',endDrag);
-    screen.addEventListener('mousedown',e=>{if(e.button!==0)return;startDrag(e.clientY,null);e.preventDefault();});
-    window.addEventListener('mousemove',e=>{if(dragging)moveDrag(e.clientY);});
-    window.addEventListener('mouseup',endDrag);
-    screen.addEventListener('wheel',e=>{pauseAuto();const d=deltaPx(),ny=clamp(currentY()+e.deltaY*CONFIG.WHEEL_SPEED,0,d);
-      clearTransition();setY(ny);e.preventDefault();},{passive:false});
-    screen.addEventListener('keydown',e=>{
-      const d=deltaPx(),y=currentY(),pageStep=screen.clientHeight*0.85;
-      if(e.key==='ArrowDown'||e.key==='PageDown'){pauseAuto();setY(Math.min(d,y+(e.key==='PageDown'?pageStep:60)));e.preventDefault();}
-      if(e.key==='ArrowUp'||e.key==='PageUp'){pauseAuto();setY(Math.max(0,y-(e.key==='PageUp'?pageStep:60)));e.preventDefault();}
-      if(e.key==='Home'){pauseAuto();setY(0);e.preventDefault();}
-      if(e.key==='End'){pauseAuto();setY(d);e.preventDefault();}
+      // Vänta tills både autoEnabled & inte temporärt pausad
+      while(!(autoEnabled && !pausedByUser)) { await sleep(120); }
+
+      const stepSize = Math.max(120, screen.clientHeight * 0.85);
+      let pos = currentY();
+
+      await sleep(CONFIG.TOP_PAUSE);
+      while(pos < d - 1){
+        // Avbryt steg om auto stängs av eller användaren pausar tillfälligt
+        if(!(autoEnabled && !pausedByUser)) break;
+        const next = Math.min(d, pos + stepSize);
+        await animateStep(pos, next);
+        pos = next;
+        await sleep(CONFIG.STEP_GAP);
+      }
+      // Om användaren eller knappen stoppade auto – hoppa till början av loopen
+      if(!(autoEnabled && !pausedByUser)) continue;
+
+      await sleep(CONFIG.BOTTOM_PAUSE);
+      await fadeReset();
+    }
+  }
+
+  // Manuell kontroll: touch, pointer, mouse (fallback), wheel, tangentbord
+  (function enableManual(){
+    let dragging = false, startY = 0, startPos = 0;
+
+    function startDrag(clientY, pointerId){
+      tempPauseAuto();
+      dragging = true;
+      screen.classList.add('dragging');
+      startY = clientY;
+      startPos = currentY();
+      try { if(pointerId != null && screen.setPointerCapture) screen.setPointerCapture(pointerId); } catch(e){}
+    }
+    function moveDrag(clientY){
+      if(!dragging) return;
+      const d = deltaPx(), dy = clientY - startY;
+      const ny = clamp(startPos - dy, 0, d);
+      clearTransition(); setY(ny);
+    }
+    function endDrag(){
+      dragging = false;
+      screen.classList.remove('dragging');
+      try { if(screen.releasePointerCapture) screen.releasePointerCapture(); } catch(e){}
+    }
+
+    // Touch
+    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY, null); } e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY); } e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchend',   endDrag);
+
+    // Pointer
+    screen.addEventListener('pointerdown', e=>{ startDrag(e.clientY, e.pointerId); e.preventDefault(); });
+    window.addEventListener('pointermove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('pointerup',   endDrag);
+
+    // Mouse fallback
+    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY, null); e.preventDefault(); });
+    window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('mouseup',   endDrag);
+
+    // Mouse wheel
+    screen.addEventListener('wheel', e=>{
+      tempPauseAuto();
+      const d = deltaPx(), y = currentY();
+      const ny = clamp(y + e.deltaY * CONFIG.WHEEL_SPEED, 0, d);
+      clearTransition(); setY(ny);
+      e.preventDefault();
+    }, {passive:false});
+
+    // Tangentbord
+    screen.addEventListener('keydown', e=>{
+      const d = deltaPx(); if(!d) return;
+      const y = currentY();
+      const pageStep = screen.clientHeight * 0.85;
+      if (e.key==='ArrowDown' || e.key==='PageDown') { tempPauseAuto(); setY(Math.min(d, y + (e.key==='PageDown'?pageStep:60))); e.preventDefault(); }
+      if (e.key==='ArrowUp'   || e.key==='PageUp')   { tempPauseAuto(); setY(Math.max(0, y - (e.key==='PageUp'?pageStep:60))); e.preventDefault(); }
+      if (e.key==='Home') { tempPauseAuto(); setY(0); e.preventDefault(); }
+      if (e.key==='End')  { tempPauseAuto(); setY(d); e.preventDefault(); }
     });
   })();
 
-  async function ready(){ try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); postSize(); loop(); }
-  if(img.complete&&img.naturalWidth)ready(); else img.addEventListener('load',ready,{once:true});
+  async function ready(){
+    try{ if(img.decode) await img.decode(); }catch(e){}
+    img.style.opacity='1'; setY(0); postSize(); loop();
+  }
+  if (img.complete && img.naturalWidth) ready();
+  else img.addEventListener('load', ready, { once:true });
 
-  function postSize(){ const h=document.documentElement.scrollHeight;
-    parent.postMessage({scrollDemoHeight:h},"*"); }
-  window.addEventListener("load",postSize); window.addEventListener("resize",postSize);
-  if('ResizeObserver'in window){ new ResizeObserver(()=>postSize()).observe(document.documentElement);} else {setInterval(postSize,1500);}
+  // Auto-höjd -> Google Sites
+  function postSize(){
+    const h = document.documentElement.scrollHeight;
+    parent.postMessage({ scrollDemoHeight: h }, "*");
+  }
+  window.addEventListener("load", postSize);
+  window.addEventListener("resize", postSize);
+  if ('ResizeObserver' in window) {
+    const ro = new ResizeObserver(()=>postSize());
+    ro.observe(document.documentElement);
+    ro.observe(screen);
+  } else {
+    setInterval(postSize, 1500);
+  }
 })();
 </script>
 </body>
