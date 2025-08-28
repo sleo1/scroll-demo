@@ -3,47 +3,63 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vit mobil 300×534 – auto + manuell scroll (utan knapp)</title>
+<title>Mobil 300×534 – exakt storlek</title>
 <style>
   :root{
-    --phone-w: 300px;
-    --phone-h: 534px;
-    --screen-lr: 8px;
-    --screen-top: 24px;
-    --screen-h: 480px;
+    --phone-w: 300px;   /* EXAKT bredd */
+    --phone-h: 534px;   /* 300 * (667/375) ≈ 534 */
+    --screen-lr: 8px;   /* smala sidokanter */
+    --screen-top: 20px; /* lite lägre toppmarginal */
+    --screen-h: 480px;  /* synlig del för tydlig scroll */
     --radius-phone: 28px;
     --radius-screen: 20px;
   }
+
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  html, body { margin:0; padding:0; height:auto; } /* ingen extra höjd */
   body{
-    margin:0;
     background:transparent;
     font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    display:grid; place-items:center;
-    overflow:hidden; /* inga inre scrollbars i iframen */
   }
-  .stage{ display:grid; place-items:center; position:relative; }
+
+  /* Wrapper som tar exakt innehållets höjd/bredd */
+  #stage{
+    display:inline-block;           /* tar exakt sin egen storlek */
+    margin:0; padding:0;
+  }
 
   .phone{
     position:relative;
-    width:var(--phone-w); height:var(--phone-h);
-    background:#fff; border-radius:var(--radius-phone);
-    box-shadow: inset 0 0 0 1px #e0e0e0; overflow:hidden;
+    width:var(--phone-w);
+    height:var(--phone-h);
+    background:#fff;
+    border-radius: var(--radius-phone);
+    box-shadow: inset 0 0 0 1px #e0e0e0;
+    overflow:hidden;
   }
+
   .notch{
     position:absolute; top:6px; left:50%; transform:translateX(-50%);
-    width:90px; height:14px; background:#eee; border-radius:0 0 8px 8px;
-    box-shadow: inset 0 0 2px rgba(0,0,0,.12); z-index:2;
+    width:90px; height:14px; background:#eee;
+    border-radius:0 0 8px 8px;
+    box-shadow: inset 0 0 2px rgba(0,0,0,.12);
+    z-index:2;
   }
+
   .screen{
-    position:absolute; top:var(--screen-top); left:var(--screen-lr);
-    width:calc(var(--phone-w) - var(--screen-lr)*2); height:var(--screen-h);
-    border-radius:var(--radius-screen); overflow:hidden; background:#fff;
+    position:absolute;
+    top: var(--screen-top);
+    left: var(--screen-lr);
+    width: calc(var(--phone-w) - var(--screen-lr) * 2);
+    height: var(--screen-h);
+    border-radius: var(--radius-screen);
+    overflow:hidden;
+    background:#fff;
     box-shadow: inset 0 0 18px rgba(0,0,0,.10);
     touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
   }
   .screen.dragging{ cursor:grabbing; }
+
   .longshot{
     width:100%; height:auto; display:block;
     transform:translateY(0); opacity:1;
@@ -57,7 +73,7 @@
 </style>
 </head>
 <body>
-  <div class="stage">
+  <div id="stage">
     <div class="phone" role="region" aria-label="Telefonram med förhandsvisning">
       <div class="notch"></div>
       <div class="screen" id="screen" tabindex="0" aria-label="Skärmområde med rullbar förhandsvisning">
@@ -72,30 +88,29 @@
 (() => {
   // === Konfig ===
   const CONFIG = {
-    STEP_DURATION: 4000,  // ms per autosteg
-    STEP_GAP:      200,   // ms mellan steg
-    TOP_PAUSE:     600,   // ms i toppen
-    BOTTOM_PAUSE:  600,   // ms i botten
-    FADE_OUT_DUR:  500,   // fade-out före reset
-    FADE_IN_DUR:   350,   // fade-in efter reset
-    RESUME_DELAY:  1500,  // paus efter manuell interaktion
+    STEP_DURATION: 4000,
+    STEP_GAP:      200,
+    TOP_PAUSE:     600,
+    BOTTOM_PAUSE:  600,
+    FADE_OUT_DUR:  500,
+    FADE_IN_DUR:   350,
+    RESUME_DELAY:  1500,
     WHEEL_SPEED:   1.0
   };
 
-  const img = document.getElementById('longshot');
+  const img    = document.getElementById('longshot');
   const screen = document.getElementById('screen');
+  const stage  = document.getElementById('stage');
 
   let running = false;
-  let pausedByUser = false;      // temporär paus vid manuell interaktion
-  let autoEnabled  = true;       // permanent autoläge (ingen knapp nu)
+  let pausedByUser = false;
+  let autoEnabled  = true;
   let resumeTimer  = null;
 
-  // Respektera OS-inställning för minskad rörelse
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    autoEnabled = false; // starta utan autoscroll
+    autoEnabled = false;
   }
 
-  // Hjälpfunktioner
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   const setY  = (y)=>{ img.style.transform = `translateY(${-Math.max(0, Math.round(y))}px)`; };
   const transition = (props, dur, easing='ease') => { img.style.transition = props.map(p=>`${p} ${dur}ms ${easing}`).join(', '); };
@@ -140,7 +155,6 @@
       const d = deltaPx();
       if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
 
-      // Vänta tills auto är på och ingen manuell paus pågår
       while(!(autoEnabled && !pausedByUser)) { await sleep(120); }
 
       const stepSize = Math.max(120, screen.clientHeight * 0.85);
@@ -220,24 +234,24 @@
 
   async function ready(){
     try{ if(img.decode) await img.decode(); }catch(e){}
-    img.style.opacity='1'; setY(0); postSize(); loop();
+    img.style.opacity='1'; setY(0); postExactHeight(); loop();
   }
   if (img.complete && img.naturalWidth) ready();
   else img.addEventListener('load', ready, { once:true });
 
-  // Auto-höjd -> Google Sites
-  function postSize(){
-    const h = document.documentElement.scrollHeight;
+  // === Auto-höjd -> Google Sites (exakt innehållshöjd) ===
+  function postExactHeight(){
+    const h = Math.ceil(document.getElementById('stage').getBoundingClientRect().height);
     parent.postMessage({ scrollDemoHeight: h }, "*");
   }
-  window.addEventListener("load", postSize);
-  window.addEventListener("resize", postSize);
+  window.addEventListener("load", postExactHeight);
+  window.addEventListener("resize", postExactHeight);
+
   if ('ResizeObserver' in window) {
-    const ro = new ResizeObserver(()=>postSize());
-    ro.observe(document.documentElement);
-    ro.observe(screen);
+    const ro = new ResizeObserver(()=>postExactHeight());
+    ro.observe(stage);
   } else {
-    setInterval(postSize, 1500);
+    setInterval(postExactHeight, 1200);
   }
 })();
 </script>
