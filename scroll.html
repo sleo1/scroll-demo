@@ -121,3 +121,116 @@
   async function fadeReset(){
     clearTransition(); await sleep(20);
     transition(['opacity'], CONFIG.FADE_OUT_DUR, 'ease'); img.style.opacity='0';
+    await sleep(CONFIG.FADE_OUT_DUR);
+    clearTransition(); setY(0); await sleep(20);
+    transition(['opacity'], CONFIG.FADE_IN_DUR, 'ease'); img.style.opacity='1';
+    await sleep(CONFIG.FADE_IN_DUR); clearTransition(); postSize();
+  }
+
+  async function loop(){
+    if(running) return; running = true;
+    while(running){
+      const d = deltaPx();
+      if(d <= 0){ img.style.opacity='1'; setY(0); await sleep(800); postSize(); continue; }
+
+      // vänta ut ev. manuell paus
+      while(pausedByUser) { await sleep(120); }
+
+      const stepSize = Math.max(120, screen.clientHeight * 0.85);
+      let pos = currentY();
+
+      await sleep(CONFIG.TOP_PAUSE);
+      while(pos < d - 1){
+        if(pausedByUser) break;
+        const next = Math.min(d, pos + stepSize);
+        await animateStep(pos, next);
+        pos = next;
+        await sleep(CONFIG.STEP_GAP);
+      }
+      if(pausedByUser) continue;
+
+      await sleep(CONFIG.BOTTOM_PAUSE);
+      await fadeReset();
+    }
+  }
+
+  // Manuell kontroll: touch, pointer, mouse, wheel, tangentbord
+  (function enableManual(){
+    let dragging=false,startY=0,startPos=0;
+
+    function startDrag(clientY,id){
+      tempPauseAuto();
+      dragging=true; screen.classList.add('dragging');
+      startY=clientY; startPos=currentY();
+      try{ if(id!=null && screen.setPointerCapture) screen.setPointerCapture(id);}catch(e){}
+    }
+    function moveDrag(clientY){
+      if(!dragging) return;
+      const d=deltaPx(), ny=clamp(startPos-(clientY-startY),0,d);
+      clearTransition(); setY(ny);
+    }
+    function endDrag(){
+      dragging=false; screen.classList.remove('dragging');
+      try{ if(screen.releasePointerCapture) screen.releasePointerCapture(); }catch(e){}
+    }
+
+    // Touch
+    screen.addEventListener('touchstart', e=>{ if(e.touches.length){ startDrag(e.touches[0].clientY,null);} e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchmove',  e=>{ if(e.touches.length){ moveDrag(e.touches[0].clientY);} e.preventDefault(); }, {passive:false});
+    screen.addEventListener('touchend',   endDrag);
+
+    // Pointer
+    screen.addEventListener('pointerdown', e=>{ startDrag(e.clientY, e.pointerId); e.preventDefault(); });
+    window.addEventListener('pointermove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('pointerup',   endDrag);
+
+    // Mouse fallback
+    screen.addEventListener('mousedown', e=>{ if(e.button!==0) return; startDrag(e.clientY,null); e.preventDefault(); });
+    window.addEventListener('mousemove', e=>{ if(dragging) moveDrag(e.clientY); });
+    window.addEventListener('mouseup',   endDrag);
+
+    // Wheel
+    screen.addEventListener('wheel', e=>{
+      tempPauseAuto();
+      const d=deltaPx(), y=currentY();
+      const ny=clamp(y + e.deltaY*CONFIG.WHEEL_SPEED, 0, d);
+      clearTransition(); setY(ny);
+      e.preventDefault();
+    }, {passive:false});
+
+    // Tangentbord
+    screen.addEventListener('keydown', e=>{
+      const d=deltaPx(); if(!d) return;
+      const y=currentY(), page=screen.clientHeight*0.85;
+      if (e.key==='ArrowDown'||e.key==='PageDown'){ tempPauseAuto(); setY(Math.min(d, y + (e.key==='PageDown'?page:60))); e.preventDefault(); }
+      if (e.key==='ArrowUp'  ||e.key==='PageUp'){   tempPauseAuto(); setY(Math.max(0, y - (e.key==='PageUp'?page:60))); e.preventDefault(); }
+      if (e.key==='Home'){ tempPauseAuto(); setY(0); e.preventDefault(); }
+      if (e.key==='End'){  tempPauseAuto(); setY(d); e.preventDefault(); }
+    });
+  })();
+
+  async function ready(){
+    try{ if(img.decode) await img.decode(); }catch(e){}
+    img.style.opacity='1'; setY(0); postSize(); loop();
+  }
+  if (img.complete && img.naturalWidth) ready();
+  else img.addEventListener('load', ready, { once:true });
+
+  // Auto-höjd -> Google Sites
+  function postSize(){
+    const h=document.documentElement.scrollHeight;
+    parent.postMessage({ scrollDemoHeight: h }, "*");
+  }
+  window.addEventListener("load", postSize);
+  window.addEventListener("resize", postSize);
+  if ('ResizeObserver' in window) {
+    const ro=new ResizeObserver(()=>postSize());
+    ro.observe(document.documentElement);
+    ro.observe(screen);
+  } else {
+    setInterval(postSize, 1500);
+  }
+})();
+</script>
+</body>
+</html>
